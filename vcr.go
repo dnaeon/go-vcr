@@ -33,3 +33,11 @@ type ResponseRecord struct {
 	// Response status code
 	Code int `yaml:"code"`
 }
+
+// Record type represents an HTTP interaction between client and
+// server. It contains the client request and the returned response
+// from the server for this request.
+type Record struct {
+	Request  RequestRecord  `yaml:"request"`
+	Response ResponseRecord `yaml:"response"`
+}
