@@ -34,10 +34,10 @@ type ResponseRecord struct {
 	Code int `yaml:"code"`
 }
 
-// Record type represents an HTTP interaction between client and
-// server. It contains the client request and the returned response
-// from the server for this request.
-type Record struct {
+// CassetteRecord type represents an HTTP interaction between
+// client and server. It contains the client request and the
+// returned response from the server for this request.
+type CassetteRecord struct {
 	Request  RequestRecord  `yaml:"request"`
 	Response ResponseRecord `yaml:"response"`
 }
