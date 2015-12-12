@@ -74,6 +74,20 @@ func NewCassette(name string) *Cassette {
 	return c
 }
 
+// Loads a cassette from file
+func (c *Cassette) Load() error {
+	cassetteFile := filepath.Join(c.Name, ".yaml")
+
+	data, err := ioutil.ReadFile(cassetteFile)
+	if err != nil {
+		return err
+	}
+
+	err = yaml.Unmarshal(data, &c)
+
+	return err
+}
+
 // Saves the cassette on disk for future use
 func (c *Cassette) Save() error {
 	cassetteFile := filepath.Join(c.Name, ".yaml")
