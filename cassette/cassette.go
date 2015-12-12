@@ -57,6 +57,17 @@ type Cassette struct {
 	Interactions []Interaction `yaml:"interactions"`
 }
 
+// Creates a new cassette
+func NewCassette(name string) *Cassette {
+	c := &Cassette{
+		Name:         name,
+		Version:      1,
+		Interactions: make([]Interaction, 0),
+	}
+
+	return c
+}
+
 // Saves the cassette on disk for future use
 func (c *Cassette) Save() error {
 	cassetteFile := filepath.Join(c.Name, ".yaml")
