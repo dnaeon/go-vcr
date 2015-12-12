@@ -1,6 +1,7 @@
 package cassette
 
 import (
+	"io/ioutil"
 	"os"
 	"net/http"
 	"path/filepath"
@@ -91,16 +92,7 @@ func (c *Cassette) Save() error {
 		return err
 	}
 
-	f, err := os.Create(cassetteFile)
-	defer f.Close()
-	if err != nil {
-		return err
-	}
+	err = ioutil.WriteFile(cassetteFile, data, 0644)
 
-	_, err = f.Write(data)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
