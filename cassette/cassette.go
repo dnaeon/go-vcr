@@ -14,6 +14,10 @@ const (
 	cassetteFormatV1 = 1
 )
 
+var (
+	RequestNotFound = errors.New("No matching request found in cassette")
+)
+
 // Client request type
 type request {
 	// Body of request
@@ -72,6 +76,17 @@ func NewCassette(name string) *Cassette {
 	}
 
 	return c
+}
+
+// Gets a recorded interaction
+func (c *Cassette) Get(r *http.Request) (*Interaction, error) {
+	for _, i := range c.Interactions {
+		if r.Method == i.Request.Method && r.URL == i.Request.URL {
+			return i, nil
+		}
+	}
+
+	return nil, RequestNotFound
 }
 
 // Loads a cassette from file
