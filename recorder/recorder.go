@@ -75,3 +75,30 @@ func NewRecorder(cassetteName string) *Recorder {
 
 	return r
 }
+
+func (r *Recorder) Start() error {
+	// Load cassette data if in replay mode
+	if r.mode == ModeReplaying {
+		if err := r.cassette.Load(); err != nil {
+			return err
+		}
+	}
+
+	// Start HTTP server to mock request
+	r.server.Start()
+
+	return nil
+}
+
+func (r *Recorder) Stop() error {
+	r.server.Close()
+
+	// Save cassette if in recording mode
+	if r.mode == ModeRecording {
+		if err := r.cassette.Save(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
