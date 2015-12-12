@@ -54,7 +54,7 @@ type Interaction struct {
 // Cassette type
 type Cassette struct {
 	// Name of the cassette file
-	Name string `yaml:"name"`
+	Name string `yaml:"-"`
 
 	// Cassette format version
 	Version int `yaml:"version"`
