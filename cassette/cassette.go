@@ -8,6 +8,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Cassette format versions
+const (
+	cassetteFormatV1 = 1
+)
+
 // Client request type
 type request {
 	// Body of request
@@ -61,7 +66,7 @@ type Cassette struct {
 func NewCassette(name string) *Cassette {
 	c := &Cassette{
 		Name:         name,
-		Version:      1,
+		Version:      cassetteFormatV1,
 		Interactions: make([]Interaction, 0),
 	}
 
