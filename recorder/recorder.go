@@ -3,6 +3,8 @@ package recorder
 import (
 	"os"
 	"log"
+	"net/http"
+	"net/url"
 
 	"github.com/dnaeon/vcr/cassette"
 )
@@ -20,14 +22,14 @@ type Recorder struct {
 	// HTTP server used to mock requests
 	server *httptest.Server
 
-	// Proxy function that can be used by client transports
-	proxyFunc    func(*http.Request) (*url.URL, error)
-
-	// Default transport that can be used by clients to inject
-	transport *http.Transport
-
 	// Cassette used by the recorder
 	cassette cassette.Cassette
+
+ 	// Proxy function that can be used by client transports
+	ProxyFunc func(*http.Request) (*url.URL, error)
+
+	// Default transport that can be used by clients to inject
+	Transport *http.Transport
 }
 
 // Creates a new recorder
@@ -68,14 +70,15 @@ func NewRecorder(cassetteName string) *Recorder {
 	r := &Recorder{
 		mode:      mode,
 		server:    server,
-		proxyFunc: proxyFunc,
-		transport: transport,
 		cassette:  c,
+		ProxyFunc: proxyFunc,
+		Transport: transport,
 	}
 
 	return r
 }
 
+// Starts the recorder
 func (r *Recorder) Start() error {
 	// Load cassette data if in replay mode
 	if r.mode == ModeReplaying {
@@ -90,6 +93,7 @@ func (r *Recorder) Start() error {
 	return nil
 }
 
+// Stops the recorder
 func (r *Recorder) Stop() error {
 	r.server.Close()
 
