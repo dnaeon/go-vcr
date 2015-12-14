@@ -19,7 +19,7 @@ var (
 )
 
 // Client request type
-type request {
+type Request {
 	// Body of request
 	Body string `yaml:"body"`
 
@@ -34,7 +34,7 @@ type request {
 }
 
 // Server response type
-type response struct {
+type Response struct {
 	// Body of response
 	Body string `yaml:"body"`
 
@@ -51,8 +51,8 @@ type response struct {
 // Interaction type contains a pair of request/response for a
 // single HTTP interaction between a client and a server 
 type Interaction struct {
-	Request  request  `yaml:"request"`
-	Response response `yaml:"response"`
+	Request  `yaml:"request"`
+	Response `yaml:"response"`
 }
 
 // Cassette type
