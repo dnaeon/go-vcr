@@ -129,9 +129,22 @@ func (c *Cassette) Save() error {
 		return err
 	}
 
-	err = ioutil.WriteFile(c.File, data, 0644)
+	f, err := os.Create(c.File)
+	if err != nil {
+		return err
+	}
 
-	return err
+	_, err = f.Write([]byte("---\n"))
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Returns true if cassette file exists, false otherwise
