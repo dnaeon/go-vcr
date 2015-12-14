@@ -1,6 +1,7 @@
 package recorder
 
 import (
+	"io/ioutil"
 	"os"
 	"log"
 	"net/http"
@@ -32,6 +33,58 @@ type Recorder struct {
 	Transport *http.Transport
 }
 
+// Proxies client requests to their original destination
+func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.Interaction, error) {
+	// Return interaction from cassette if in replay mode
+	if mode == ModeReplaying {
+		return c.Get(r)
+	}
+
+	// Else, perform client request to their original
+	// destination and record interactions
+	client := &http.Client{}
+	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header = r.Header
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Record the interaction and add it to the cassette
+	reqBody, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Add interaction to cassette
+	interaction := cassette.Interaction{
+		Request: cassette.Request{
+			Body:    string(reqBody),
+			Headers: req.Header,
+			URL:     req.URL.String(),
+			Method:  req.Method,
+		},
+		Response: cassette.Response{
+			Body:    string(respBody),
+			Headers: resp.Header,
+			Status:  resp.Status,
+			Code:    resp.StatusCode,
+		},
+	}
+	c.Add(interaction)
+
+	return interaction, nil
+}
+
 // Creates a new recorder
 func NewRecorder(cassetteName string) *Recorder {
 	c := cassette.NewCassette(cassetteName)
@@ -43,8 +96,8 @@ func NewRecorder(cassetteName string) *Recorder {
 
 	// Handler for client requests
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Pass cassette to handler for recording and replaying interactions
-		interaction, err := proxyRequestHandler(r, c)
+		// Pass cassette to handler for recording and replaying of interactions
+		interaction, err := requestHandler(r, c, mode)
 		if err != nil {
 			log.Fatal(err)
 		}
