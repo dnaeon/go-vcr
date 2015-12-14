@@ -1,6 +1,7 @@
 package cassette
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"net/http"
@@ -19,7 +20,7 @@ var (
 )
 
 // Client request type
-type Request {
+type Request struct {
 	// Body of request
 	Body string `yaml:"body"`
 
@@ -64,7 +65,7 @@ type Cassette struct {
 	Version int `yaml:"version"`
 
 	// Interactions between client and server
-	Interactions []Interaction `yaml:"interactions"`
+	Interactions []*Interaction `yaml:"interactions"`
 }
 
 // Creates a new cassette
@@ -72,7 +73,7 @@ func NewCassette(name string) *Cassette {
 	c := &Cassette{
 		Name:         name,
 		Version:      cassetteFormatV1,
-		Interactions: make([]Interaction, 0),
+		Interactions: make([]*Interaction, 0),
 	}
 
 	return c
@@ -86,7 +87,7 @@ func (c *Cassette) Add(i *Interaction) {
 // Gets a recorded interaction
 func (c *Cassette) Get(r *http.Request) (*Interaction, error) {
 	for _, i := range c.Interactions {
-		if r.Method == i.Request.Method && r.URL == i.Request.URL {
+		if r.Method == i.Request.Method && r.URL.String() == i.Request.URL {
 			return i, nil
 		}
 	}
@@ -115,7 +116,7 @@ func (c *Cassette) Save() error {
 
 	// Create directory for cassette if missing
 	if _, err := os.Stat(cassetteDir); os.IsNotExist(err) {
-		if err = os.MkdirAll; err != nil {
+		if err = os.MkdirAll(cassetteDir, 0755); err != nil {
 			return err
 		}
 	}

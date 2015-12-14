@@ -10,7 +10,7 @@ import (
 // The returned Recorder must be stopped by the
 // caller when no longer needed
 func Play(cassette string) *recorder.Recorder {
-	r = recorder.NewRecorder(cassette)
+	r := recorder.NewRecorder(cassette)
 
 	err := r.Start()
 	if err != nil {

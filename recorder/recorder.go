@@ -1,6 +1,7 @@
 package recorder
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"log"
@@ -25,7 +26,7 @@ type Recorder struct {
 	server *httptest.Server
 
 	// Cassette used by the recorder
-	cassette cassette.Cassette
+	cassette *cassette.Cassette
 
  	// Proxy function that can be used by client transports
 	ProxyFunc func(*http.Request) (*url.URL, error)
@@ -67,7 +68,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 	}
 
 	// Add interaction to cassette
-	interaction := cassette.Interaction{
+	interaction := &cassette.Interaction{
 		Request: cassette.Request{
 			Body:    string(reqBody),
 			Headers: req.Header,
@@ -88,11 +89,13 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 
 // Creates a new recorder
 func NewRecorder(cassetteName string) *Recorder {
+	// Default mode is recording unless cassette file is present
+	mode := ModeRecording
 	c := cassette.NewCassette(cassetteName)
-	if os.Stat(cassetteName); os.IsNotExist(err) {
-		mode := ModeRecording
-	} else {
-		mode := ModeReplaying
+
+	// Switch to replay mode if cassette file is present
+	if _, err := os.Stat(cassetteName); os.IsExist(err) {
+		mode = ModeReplaying
 	}
 
 	// Handler for client requests
