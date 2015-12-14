@@ -5,6 +5,7 @@ import (
 	"os"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 
 	"github.com/dnaeon/vcr/cassette"
