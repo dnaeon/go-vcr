@@ -62,7 +62,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	// Add interaction to cassette
