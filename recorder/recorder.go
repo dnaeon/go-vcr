@@ -3,7 +3,6 @@ package recorder
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -89,13 +88,14 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 
 // Creates a new recorder
 func NewRecorder(cassetteName string) *Recorder {
-	// Default mode is recording unless cassette file is present
-	mode := ModeRecording
 	c := cassette.NewCassette(cassetteName)
 
 	// Switch to replay mode if cassette file is present
-	if _, err := os.Stat(cassetteName); os.IsExist(err) {
+	var mode int
+	if c.Exists() {
 		mode = ModeReplaying
+	} else {
+		mode = ModeRecording
 	}
 
 	// Handler for client requests
