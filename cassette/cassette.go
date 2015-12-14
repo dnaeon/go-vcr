@@ -1,6 +1,7 @@
 package cassette
 
 import (
+	"fmt"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -58,8 +59,11 @@ type Interaction struct {
 
 // Cassette type
 type Cassette struct {
-	// Name of the cassette file
+	// Name of the cassette
 	Name string `yaml:"-"`
+
+	// File name of the cassette as written on disk
+	File string `yaml:"-"`
 
 	// Cassette format version
 	Version int `yaml:"version"`
@@ -72,6 +76,7 @@ type Cassette struct {
 func NewCassette(name string) *Cassette {
 	c := &Cassette{
 		Name:         name,
+		File:         fmt.Sprintf("%s.yaml", name),
 		Version:      cassetteFormatV1,
 		Interactions: make([]*Interaction, 0),
 	}
@@ -97,9 +102,7 @@ func (c *Cassette) Get(r *http.Request) (*Interaction, error) {
 
 // Loads a cassette from file
 func (c *Cassette) Load() error {
-	cassetteFile := filepath.Join(c.Name, ".yaml")
-
-	data, err := ioutil.ReadFile(cassetteFile)
+	data, err := ioutil.ReadFile(c.File)
 	if err != nil {
 		return err
 	}
@@ -111,8 +114,7 @@ func (c *Cassette) Load() error {
 
 // Saves the cassette on disk for future use
 func (c *Cassette) Save() error {
-	cassetteFile := filepath.Join(c.Name, ".yaml")
-	cassetteDir := filepath.Dir(cassetteFile)
+	cassetteDir := filepath.Dir(c.File)
 
 	// Create directory for cassette if missing
 	if _, err := os.Stat(cassetteDir); os.IsNotExist(err) {
@@ -127,7 +129,16 @@ func (c *Cassette) Save() error {
 		return err
 	}
 
-	err = ioutil.WriteFile(cassetteFile, data, 0644)
+	err = ioutil.WriteFile(c.File, data, 0644)
 
 	return err
+}
+
+// Returns true if cassette file exists, false otherwise
+func (c *Cassette) Exists() bool {
+	if _, err := os.Stat(c.File); err == nil {
+		return true
+	}
+
+	return false
 }
