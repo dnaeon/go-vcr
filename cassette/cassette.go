@@ -1,11 +1,11 @@
 package cassette
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"io/ioutil"
-	"os"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v2"
@@ -51,7 +51,7 @@ type Response struct {
 }
 
 // Interaction type contains a pair of request/response for a
-// single HTTP interaction between a client and a server 
+// single HTTP interaction between a client and a server
 type Interaction struct {
 	Request  `yaml:"request"`
 	Response `yaml:"response"`

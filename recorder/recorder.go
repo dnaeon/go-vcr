@@ -27,7 +27,7 @@ type Recorder struct {
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
 
- 	// Proxy function that can be used by client transports
+	// Proxy function that can be used by client transports
 	ProxyFunc func(*http.Request) (*url.URL, error)
 
 	// Default transport that can be used by clients to inject
