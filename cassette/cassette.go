@@ -78,6 +78,11 @@ func NewCassette(name string) *Cassette {
 	return c
 }
 
+// Adds a new interaction to the cassette
+func (c *Cassette) Add(i *Interaction) {
+	c.Interactions = append(c.Interactions, i)
+}
+
 // Gets a recorded interaction
 func (c *Cassette) Get(r *http.Request) (*Interaction, error) {
 	for _, i := range c.Interactions {
