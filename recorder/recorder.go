@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	"github.com/dnaeon/vcr/cassette"
+	"github.com/dnaeon/go-vcr/cassette"
 )
 
 // Recorder states

@@ -3,7 +3,7 @@ package vcr
 import (
 	"log"
 
-	"github.com/dnaeon/vcr/recorder"
+	"github.com/dnaeon/go-vcr/recorder"
 )
 
 // Helper wrapper around recorder.Recorder type
