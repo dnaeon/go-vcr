@@ -1,6 +1,7 @@
 package recorder
 
 import (
+	"os"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -38,7 +39,7 @@ type Recorder struct {
 func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.Interaction, error) {
 	// Return interaction from cassette if in replay mode
 	if mode == ModeReplaying {
-		return c.Get(r)
+		return c.GetInteraction(r)
 	}
 
 	// Else, perform client request to their original
@@ -81,29 +82,48 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 			Code:    resp.StatusCode,
 		},
 	}
-	c.Add(interaction)
+	c.AddInteraction(interaction)
 
 	return interaction, nil
 }
 
 // Creates a new recorder
-func NewRecorder(cassetteName string) *Recorder {
-	c := cassette.NewCassette(cassetteName)
-
-	// Switch to replay mode if cassette file is present
+func New(cassetteName string) (*Recorder, error) {
 	var mode int
-	if c.Exists() {
-		mode = ModeReplaying
-	} else {
+	var c *cassette.Cassette
+	cassetteFile := fmt.Sprintf("%s.yaml", cassetteName)
+
+	// Depending on whether the cassette file exists or not we
+	// either create a new empty cassette or load from file
+	if _, err := os.Stat(cassetteFile); os.IsNotExist(err) {
+		// Create new cassette and enter in recording mode
+		c = cassette.New(cassetteName)
 		mode = ModeRecording
+	} else {
+		// Load cassette from file and enter replay mode
+		c, err = cassette.Load(cassetteName)
+		if err != nil {
+			return nil, err
+		}
+		mode = ModeReplaying
 	}
 
 	// Handler for client requests
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Pass cassette to handler for recording and replaying of interactions
+		// Pass cassette and mode to handler, so that interactions can be
+		// retrieved or recorded depending on the current recorder mode
 		interaction, err := requestHandler(r, c, mode)
+
+		// Handle known and recoverable errors
 		if err != nil {
-			log.Fatal(err)
+			switch err {
+			case cassette.InteractionNotFound:
+				// Interaction was not found in cassette
+				http.NotFound(w, r)
+			default:
+				// Other error occurred
+				log.Fatal(err)
+			}
 		}
 
 		w.WriteHeader(interaction.Response.Code)
@@ -111,13 +131,16 @@ func NewRecorder(cassetteName string) *Recorder {
 	})
 
 	// HTTP server used to mock requests
-	server := httptest.NewUnstartedServer(handler)
+	server := httptest.NewServer(handler)
 
 	// A proxy function which routes all requests through our HTTP server
 	// Can be used by clients to inject into their own transports
-	proxyFunc := func(*http.Request) (*url.URL, error) {
-		return url.Parse(server.URL)
+	proxyUrl, err := url.Parse(server.URL)
+	if err != nil {
+		return nil, err
 	}
+
+	proxyFunc := http.ProxyURL(proxyUrl)
 
 	// A transport which can be used by clients to inject
 	transport := &http.Transport{
@@ -132,29 +155,13 @@ func NewRecorder(cassetteName string) *Recorder {
 		Transport: transport,
 	}
 
-	return r
-}
-
-// Starts the recorder
-func (r *Recorder) Start() error {
-	// Load cassette data if in replay mode
-	if r.mode == ModeReplaying {
-		if err := r.cassette.Load(); err != nil {
-			return err
-		}
-	}
-
-	// Start HTTP server to mock request
-	r.server.Start()
-
-	return nil
+	return r, nil
 }
 
 // Stops the recorder
 func (r *Recorder) Stop() error {
 	r.server.Close()
 
-	// Save cassette if in recording mode
 	if r.mode == ModeRecording {
 		if err := r.cassette.Save(); err != nil {
 			return err
