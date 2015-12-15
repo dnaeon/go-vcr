@@ -153,12 +153,3 @@ func (c *Cassette) Save() error {
 
 	return nil
 }
-
-// Returns true if cassette file exists, false otherwise
-func (c *Cassette) Exists() bool {
-	if _, err := os.Stat(c.File); err == nil {
-		return true
-	}
-
-	return false
-}
