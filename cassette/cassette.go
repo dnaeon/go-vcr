@@ -114,6 +114,11 @@ func (c *Cassette) Load() error {
 
 // Saves the cassette on disk for future use
 func (c *Cassette) Save() error {
+	// Save cassette file only if there were any interactions made
+	if len(c.Interactions) == 0 {
+		return nil
+	}
+
 	cassetteDir := filepath.Dir(c.File)
 
 	// Create directory for cassette if missing
