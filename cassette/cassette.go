@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	RequestNotFound = errors.New("No matching request found in cassette")
+	InteractionNotFound = errors.New("Requested interaction not found")
 )
 
 // Client request type
@@ -72,8 +72,8 @@ type Cassette struct {
 	Interactions []*Interaction `yaml:"interactions"`
 }
 
-// Creates a new cassette
-func NewCassette(name string) *Cassette {
+// Creates a new empty cassette
+func New(name string) *Cassette {
 	c := &Cassette{
 		Name:         name,
 		File:         fmt.Sprintf("%s.yaml", name),
@@ -84,44 +84,44 @@ func NewCassette(name string) *Cassette {
 	return c
 }
 
+// Loads a cassette file from disk
+func Load(name string) (*Cassette, error) {
+	c := New(name)
+	data, err := ioutil.ReadFile(c.File)
+	if err != nil {
+		return nil, err
+	}
+
+	err = yaml.Unmarshal(data, &c)
+
+	return c, err
+}
+
 // Adds a new interaction to the cassette
-func (c *Cassette) Add(i *Interaction) {
+func (c *Cassette) AddInteraction(i *Interaction) {
 	c.Interactions = append(c.Interactions, i)
 }
 
 // Gets a recorded interaction
-func (c *Cassette) Get(r *http.Request) (*Interaction, error) {
+func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 	for _, i := range c.Interactions {
 		if r.Method == i.Request.Method && r.URL.String() == i.Request.URL {
 			return i, nil
 		}
 	}
 
-	return nil, RequestNotFound
+	return nil, InteractionNotFound
 }
 
-// Loads a cassette from file
-func (c *Cassette) Load() error {
-	data, err := ioutil.ReadFile(c.File)
-	if err != nil {
-		return err
-	}
-
-	err = yaml.Unmarshal(data, &c)
-
-	return err
-}
-
-// Saves the cassette on disk for future use
+// Saves the cassette on disk for future re-use
 func (c *Cassette) Save() error {
 	// Save cassette file only if there were any interactions made
 	if len(c.Interactions) == 0 {
 		return nil
 	}
 
-	cassetteDir := filepath.Dir(c.File)
-
 	// Create directory for cassette if missing
+	cassetteDir := filepath.Dir(c.File)
 	if _, err := os.Stat(cassetteDir); os.IsNotExist(err) {
 		if err = os.MkdirAll(cassetteDir, 0755); err != nil {
 			return err
@@ -139,6 +139,8 @@ func (c *Cassette) Save() error {
 		return err
 	}
 
+	// Honor the YAML structure specification
+	// http://www.yaml.org/spec/1.2/spec.html#id2760395
 	_, err = f.Write([]byte("---\n"))
 	if err != nil {
 		return err
