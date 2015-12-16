@@ -1,0 +1,32 @@
+---
+version: 1
+interactions:
+- request:
+    body: ""
+    headers:
+      Accept-Encoding:
+      - gzip
+      User-Agent:
+      - Go-http-client/1.1
+    url: http://127.0.0.1:2379/v2/keys/foo?quorum=false&recursive=false&sorted=false
+    method: GET
+  response:
+    body: |
+      {"action":"get","node":{"key":"/foo","value":"bar","modifiedIndex":523,"createdIndex":523}}
+    headers:
+      Content-Length:
+      - "92"
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 16 Dec 2015 12:39:45 GMT
+      X-Etcd-Cluster-Id:
+      - 7e27652122e8b2ae
+      X-Etcd-Index:
+      - "523"
+      X-Raft-Index:
+      - "803901"
+      X-Raft-Term:
+      - "20"
+    status: 200 OK
+    code: 200
