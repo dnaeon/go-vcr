@@ -110,16 +110,8 @@ func New(cassetteName string) (*Recorder, error) {
 		// retrieved or recorded depending on the current recorder mode
 		interaction, err := requestHandler(r, c, mode)
 
-		// Handle known and recoverable errors
 		if err != nil {
-			switch err {
-			case cassette.InteractionNotFound:
-				// Interaction was not found in cassette
-				http.NotFound(w, r)
-			default:
-				// Other error occurred
-				log.Fatal(err)
-			}
+			log.Fatalf("Failed to process request for URL %s: %s", r.URL, err)
 		}
 
 		w.WriteHeader(interaction.Response.Code)
