@@ -1,13 +1,13 @@
 package recorder
 
 import (
-	"os"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 
 	"github.com/dnaeon/go-vcr/cassette"
 )
