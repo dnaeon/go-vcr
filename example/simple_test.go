@@ -15,7 +15,7 @@ func TestSimple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Stop()
+	defer r.Stop() // Make sure recorder is stopped once done with it
 
 	// Create an HTTP client and inject our transport
 	client := &http.Client{
