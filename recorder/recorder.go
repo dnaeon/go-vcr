@@ -28,10 +28,7 @@ type Recorder struct {
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
 
-	// Proxy function that can be used by client transports
-	ProxyFunc func(*http.Request) (*url.URL, error)
-
-	// Default transport that can be used by clients to inject
+	// Transport that can be used by clients to inject
 	Transport *http.Transport
 }
 
@@ -44,14 +41,13 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 
 	// Else, perform client request to their original
 	// destination and record interactions
-	client := &http.Client{}
 	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header = r.Header
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -140,18 +136,15 @@ func New(cassetteName string) (*Recorder, error) {
 		return nil, err
 	}
 
-	proxyFunc := http.ProxyURL(proxyUrl)
-
 	// A transport which can be used by clients to inject
 	transport := &http.Transport{
-		Proxy: proxyFunc,
+		Proxy: http.ProxyURL(proxyUrl),
 	}
 
 	r := &Recorder{
 		mode:      mode,
 		server:    server,
 		cassette:  c,
-		ProxyFunc: proxyFunc,
 		Transport: transport,
 	}
 
