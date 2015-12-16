@@ -49,7 +49,7 @@ func main() {
 	cfg := client.Config{
 		Endpoints: []string{
 			"http://127.0.0.1:2379",
-			"http:127.0.0.1:4001",
+			"http://127.0.0.1:4001",
 		},
 		HeaderTimeoutPerRequest: time.Second,
 		Transport:               r.Transport, // Inject our transport!
