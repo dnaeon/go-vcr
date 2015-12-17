@@ -65,7 +65,8 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 
 	// Else, perform client request to their original
 	// destination and record interactions
-	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
+	body := ioutil.NopCloser(r.Body)
+	req, err := http.NewRequest(r.Method, r.URL.String(), body)
 	if err != nil {
 		return nil, err
 	}
