@@ -27,7 +27,6 @@ package recorder
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -136,7 +135,7 @@ func New(cassetteName string) (*Recorder, error) {
 		interaction, err := requestHandler(r, c, mode)
 
 		if err != nil {
-			log.Fatalf("Failed to process request for URL %s: %s", r.URL, err)
+			panic(fmt.Errorf("Failed to process request for URL %s: %s", r.URL, err))
 		}
 
 		w.WriteHeader(interaction.Response.Code)
