@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2015-2016 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -55,16 +55,25 @@ func TestEtcd(t *testing.T) {
 		t.Fatalf("Failed to create etcd client: %s", err)
 	}
 
-	// Get an example key from etcd
 	kapi := client.NewKeysAPI(c)
-	resp, err := kapi.Get(context.Background(), "/foo", nil)
+
+	// Etcd key and value we use
+	wantKey := "/foo"
+	wantValue := "bar"
+
+	// Set the key in etcd
+	_, err = kapi.Set(context.Background(), wantKey, wantValue, nil)
+	if err != nil {
+		t.Fatalf("Failed to set etcd key: %s", err)
+	}
+
+	// Get the key from etcd
+	resp, err := kapi.Get(context.Background(), wantKey, nil)
 	if err != nil {
 		t.Fatalf("Failed to get etcd key: %s", err)
 	}
 
-	wantValue := "bar"
 	gotValue := resp.Node.Value
-
 	if wantValue != gotValue {
 		t.Errorf("want %q value, got %q value", wantValue, gotValue)
 	}
