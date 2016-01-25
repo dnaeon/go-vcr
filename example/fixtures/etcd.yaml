@@ -3,6 +3,43 @@ version: 1
 interactions:
 - request:
     body: ""
+    form:
+      value:
+      - bar
+    headers:
+      Accept-Encoding:
+      - gzip
+      Content-Length:
+      - "9"
+      Content-Type:
+      - application/x-www-form-urlencoded
+      User-Agent:
+      - Go-http-client/1.1
+    url: http://127.0.0.1:2379/v2/keys/foo
+    method: PUT
+  response:
+    body: |
+      {"action":"set","node":{"key":"/foo","value":"bar","modifiedIndex":4,"createdIndex":4}}
+    headers:
+      Content-Length:
+      - "88"
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 25 Jan 2016 10:17:27 GMT
+      X-Etcd-Cluster-Id:
+      - 7e27652122e8b2ae
+      X-Etcd-Index:
+      - "4"
+      X-Raft-Index:
+      - "114"
+      X-Raft-Term:
+      - "2"
+    status: 201 Created
+    code: 201
+- request:
+    body: ""
+    form: {}
     headers:
       Accept-Encoding:
       - gzip
@@ -12,21 +49,21 @@ interactions:
     method: GET
   response:
     body: |
-      {"action":"get","node":{"key":"/foo","value":"bar","modifiedIndex":523,"createdIndex":523}}
+      {"action":"get","node":{"key":"/foo","value":"bar","modifiedIndex":4,"createdIndex":4}}
     headers:
       Content-Length:
-      - "92"
+      - "88"
       Content-Type:
       - application/json
       Date:
-      - Wed, 16 Dec 2015 13:45:47 GMT
+      - Mon, 25 Jan 2016 10:17:27 GMT
       X-Etcd-Cluster-Id:
       - 7e27652122e8b2ae
       X-Etcd-Index:
-      - "526"
+      - "4"
       X-Raft-Index:
-      - "807547"
+      - "114"
       X-Raft-Term:
-      - "23"
+      - "2"
     status: 200 OK
     code: 200
