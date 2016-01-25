@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -48,6 +49,9 @@ var (
 type Request struct {
 	// Body of request
 	Body string `yaml:"body"`
+
+	// Form values
+	Form url.Values `yaml:"form"`
 
 	// Request headers
 	Headers http.Header `yaml:"headers"`

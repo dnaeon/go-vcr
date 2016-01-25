@@ -25,10 +25,13 @@
 package recorder
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"os"
 
@@ -62,7 +65,24 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 		return c.GetInteraction(r)
 	}
 
-	// Else, perform client request to their original
+	// Copy the original request, so we can read the form values
+	reqBytes, err := httputil.DumpRequestOut(r, true)
+	if err != nil {
+		return nil, err
+	}
+
+	reqBuffer := bytes.NewBuffer(reqBytes)
+	copiedReq, err := http.ReadRequest(bufio.NewReader(reqBuffer))
+	if err != nil {
+		return nil, err
+	}
+
+	err = copiedReq.ParseForm()
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform client request to it's original
 	// destination and record interactions
 	body := ioutil.NopCloser(r.Body)
 	req, err := http.NewRequest(r.Method, r.URL.String(), body)
@@ -91,6 +111,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 	interaction := &cassette.Interaction{
 		Request: cassette.Request{
 			Body:    string(reqBody),
+			Form:    copiedReq.PostForm,
 			Headers: req.Header,
 			URL:     req.URL.String(),
 			Method:  req.Method,
