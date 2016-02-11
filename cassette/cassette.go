@@ -42,6 +42,7 @@ const (
 )
 
 var (
+	// Requested interaction was not found in the cassette file
 	ErrInteractionNotFound = errors.New("Requested interaction not found")
 )
 
