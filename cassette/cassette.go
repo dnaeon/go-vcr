@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	InteractionNotFound = errors.New("Requested interaction not found")
+	ErrInteractionNotFound = errors.New("Requested interaction not found")
 )
 
 // Client request type
@@ -138,7 +138,7 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 		}
 	}
 
-	return nil, InteractionNotFound
+	return nil, ErrInteractionNotFound
 }
 
 // Saves the cassette on disk for future re-use
