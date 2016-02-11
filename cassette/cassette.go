@@ -46,7 +46,8 @@ var (
 	ErrInteractionNotFound = errors.New("Requested interaction not found")
 )
 
-// Client request type
+// Request represents a client request as recorded in the
+// cassette file
 type Request struct {
 	// Body of request
 	Body string `yaml:"body"`
@@ -64,7 +65,8 @@ type Request struct {
 	Method string `yaml:"method"`
 }
 
-// Server response type
+// Response represents a server response as recorded in the
+// cassette file
 type Response struct {
 	// Body of response
 	Body string `yaml:"body"`
@@ -101,7 +103,7 @@ type Cassette struct {
 	Interactions []*Interaction `yaml:"interactions"`
 }
 
-// Creates a new empty cassette
+// New creates a new empty cassette
 func New(name string) *Cassette {
 	c := &Cassette{
 		Name:         name,
@@ -113,7 +115,7 @@ func New(name string) *Cassette {
 	return c
 }
 
-// Loads a cassette file from disk
+// Load reads a cassette file from disk
 func Load(name string) (*Cassette, error) {
 	c := New(name)
 	data, err := ioutil.ReadFile(c.File)
@@ -126,12 +128,12 @@ func Load(name string) (*Cassette, error) {
 	return c, err
 }
 
-// Adds a new interaction to the cassette
+// AddInteraction appends a new interaction to the cassette
 func (c *Cassette) AddInteraction(i *Interaction) {
 	c.Interactions = append(c.Interactions, i)
 }
 
-// Gets a recorded interaction
+// GetInteraction retrieves a recorded request/response interaction
 func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 	for _, i := range c.Interactions {
 		if r.Method == i.Request.Method && r.URL.String() == i.Request.URL {
@@ -142,7 +144,7 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 	return nil, ErrInteractionNotFound
 }
 
-// Saves the cassette on disk for future re-use
+// Save writes the cassette data on disk for future re-use
 func (c *Cassette) Save() error {
 	// Save cassette file only if there were any interactions made
 	if len(c.Interactions) == 0 {
