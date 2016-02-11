@@ -44,6 +44,8 @@ const (
 	ModeReplaying
 )
 
+// Recorder represents a type used to record and replay
+// client and server interactions
 type Recorder struct {
 	// Operating mode of the recorder
 	mode int
@@ -128,7 +130,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 	return interaction, nil
 }
 
-// Creates a new recorder
+// New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
 	var mode int
 	var c *cassette.Cassette
@@ -168,14 +170,14 @@ func New(cassetteName string) (*Recorder, error) {
 
 	// A proxy function which routes all requests through our HTTP server
 	// Can be used by clients to inject into their own transports
-	proxyUrl, err := url.Parse(server.URL)
+	proxyURL, err := url.Parse(server.URL)
 	if err != nil {
 		return nil, err
 	}
 
 	// A transport which can be used by clients to inject
 	transport := &http.Transport{
-		Proxy: http.ProxyURL(proxyUrl),
+		Proxy: http.ProxyURL(proxyURL),
 	}
 
 	r := &Recorder{
@@ -188,7 +190,7 @@ func New(cassetteName string) (*Recorder, error) {
 	return r, nil
 }
 
-// Stops the recorder
+// Stop is used to stop the recorder and save any recorded interactions
 func (r *Recorder) Stop() error {
 	r.server.Close()
 
