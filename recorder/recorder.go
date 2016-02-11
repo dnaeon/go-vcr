@@ -30,9 +30,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
 	"net/http/httputil"
-	"net/url"
 	"os"
 
 	"github.com/dnaeon/go-vcr/cassette"
@@ -50,14 +48,11 @@ type Recorder struct {
 	// Operating mode of the recorder
 	mode int
 
-	// HTTP server used to mock requests
-	server *httptest.Server
-
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
 
 	// Transport that can be used by clients to inject
-	Transport *http.Transport
+	Transport *Transport
 }
 
 // Proxies client requests to their original destination
@@ -151,38 +146,11 @@ func New(cassetteName string) (*Recorder, error) {
 		mode = ModeReplaying
 	}
 
-	// Handler for client requests
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Pass cassette and mode to handler, so that interactions can be
-		// retrieved or recorded depending on the current recorder mode
-		interaction, err := requestHandler(r, c, mode)
-
-		if err != nil {
-			panic(fmt.Errorf("Failed to process request for URL %s: %s", r.URL, err))
-		}
-
-		w.WriteHeader(interaction.Response.Code)
-		fmt.Fprintln(w, interaction.Response.Body)
-	})
-
-	// HTTP server used to mock requests
-	server := httptest.NewServer(handler)
-
-	// A proxy function which routes all requests through our HTTP server
-	// Can be used by clients to inject into their own transports
-	proxyURL, err := url.Parse(server.URL)
-	if err != nil {
-		return nil, err
-	}
-
 	// A transport which can be used by clients to inject
-	transport := &http.Transport{
-		Proxy: http.ProxyURL(proxyURL),
-	}
+	transport := &Transport{c: c, mode: mode}
 
 	r := &Recorder{
 		mode:      mode,
-		server:    server,
 		cassette:  c,
 		Transport: transport,
 	}
@@ -192,8 +160,6 @@ func New(cassetteName string) (*Recorder, error) {
 
 // Stop is used to stop the recorder and save any recorded interactions
 func (r *Recorder) Stop() error {
-	r.server.Close()
-
 	if r.mode == ModeRecording {
 		if err := r.cassette.Save(); err != nil {
 			return err
@@ -201,4 +167,41 @@ func (r *Recorder) Stop() error {
 	}
 
 	return nil
+}
+
+// Transport either records or replays responses from a cassette, depending on its mode
+type Transport struct {
+	c    *cassette.Cassette
+	mode int
+}
+
+// RoundTrip implements the http.RoundTripper interface
+func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// Pass cassette and mode to handler, so that interactions can be
+	// retrieved or recorded depending on the current recorder mode
+	interaction, err := requestHandler(r, t.c, t.mode)
+
+	if err != nil {
+		panic(fmt.Errorf("Failed to process request for URL %s: %s", r.URL, err))
+	}
+
+	buf := bytes.NewBuffer([]byte(interaction.Response.Body))
+
+	return &http.Response{
+		Status:        interaction.Response.Status,
+		StatusCode:    interaction.Response.Code,
+		Proto:         "HTTP/1.0",
+		ProtoMajor:    1,
+		ProtoMinor:    0,
+		Request:       r,
+		Header:        interaction.Response.Headers,
+		Close:         true,
+		ContentLength: int64(buf.Len()),
+		Body:          ioutil.NopCloser(buf),
+	}, nil
+}
+
+// CancelRequest implements the github.com/coreos/etcd/client.CancelableTransport interface
+func (t *Transport) CancelRequest(req *http.Request) {
+	// noop
 }
