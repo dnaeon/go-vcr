@@ -169,11 +169,13 @@ func (r *Recorder) Stop() error {
 	return nil
 }
 
+// Transport either records or replays responses from a cassette, depending on its mode
 type Transport struct {
 	c    *cassette.Cassette
 	mode int
 }
 
+// RoundTrip implements the http.RoundTripper interface
 func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// Pass cassette and mode to handler, so that interactions can be
 	// retrieved or recorded depending on the current recorder mode
@@ -199,6 +201,7 @@ func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}, nil
 }
 
+// CancelRequest implements the github.com/coreos/etcd/client.CancelableTransport interface
 func (t *Transport) CancelRequest(req *http.Request) {
 	// noop
 }
