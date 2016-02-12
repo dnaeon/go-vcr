@@ -35,12 +35,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dnaeon/go-vcr/cassette"
 	"github.com/dnaeon/go-vcr/recorder"
 )
 
 type recordTest struct {
 	method string
-	body   io.Reader
+	body   string
 	out    string
 }
 
@@ -50,7 +51,7 @@ func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
 		Transport: r.Transport, // Inject our transport!
 	}
 
-	req, err := http.NewRequest(test.method, url, test.body)
+	req, err := http.NewRequest(test.method, url, strings.NewReader(test.body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +79,7 @@ func TestRecord(t *testing.T) {
 		},
 		{
 			method: "POST",
-			body:   strings.NewReader("post body"),
+			body:   "post body",
 			out:    "POST " + runID + "\npost body",
 		},
 	}
@@ -120,6 +121,17 @@ func TestRecord(t *testing.T) {
 			test.perform(t, serverURL, r)
 		}
 	}()
+
+	c, err := cassette.Load(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, test := range tests {
+		body := c.Interactions[i].Request.Body
+		if body != test.body {
+			t.Fatalf("got:\t%s\n\twant:\t%s", string(body), string(test.body))
+		}
+	}
 
 	if serverUp {
 		t.Fatal("expected server to have shut down")

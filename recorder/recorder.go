@@ -28,6 +28,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -79,26 +80,17 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 		return nil, err
 	}
 
+	reqBody := &bytes.Buffer{}
+	if r.Body != nil {
+		// Record the request body so we can add it to the cassette
+		r.Body = ioutil.NopCloser(io.TeeReader(r.Body, reqBody))
+	}
+
 	// Perform client request to it's original
 	// destination and record interactions
-	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
+	resp, err := http.DefaultClient.Do(r)
 	if err != nil {
 		return nil, err
-	}
-
-	req.Header = r.Header
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	var reqBody []byte
-	if req.Body != nil {
-		// Record the interaction and add it to the cassette
-		reqBody, err = ioutil.ReadAll(req.Body)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	respBody, err := ioutil.ReadAll(resp.Body)
@@ -109,11 +101,11 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 	// Add interaction to cassette
 	interaction := &cassette.Interaction{
 		Request: cassette.Request{
-			Body:    string(reqBody),
+			Body:    reqBody.String(),
 			Form:    copiedReq.PostForm,
-			Headers: req.Header,
-			URL:     req.URL.String(),
-			Method:  req.Method,
+			Headers: r.Header,
+			URL:     r.URL.String(),
+			Method:  r.Method,
 		},
 		Response: cassette.Response{
 			Body:    string(respBody),
