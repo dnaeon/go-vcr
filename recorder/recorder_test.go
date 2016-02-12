@@ -89,6 +89,7 @@ func TestRecord(t *testing.T) {
 	}
 	cassPath := path.Join(dir, "record_test")
 	var serverURL string
+	serverUp := false
 
 	func() {
 		// Start our recorder
@@ -106,13 +107,23 @@ func TestRecord(t *testing.T) {
 				io.Copy(w, r.Body)
 			}
 		}))
-		defer server.Close()
+		serverUp = true
+		defer func() {
+			server.Close()
+			t.Log("server shut down")
+			serverUp = false
+		}()
 		serverURL = server.URL
 
+		t.Log("recording")
 		for _, test := range tests {
 			test.perform(t, serverURL, r)
 		}
 	}()
+
+	if serverUp {
+		t.Fatal("expected server to have shut down")
+	}
 
 	// Re-run without the actual server
 	func() {
@@ -122,6 +133,7 @@ func TestRecord(t *testing.T) {
 		}
 		defer r.Stop()
 
+		t.Log("replaying")
 		for _, test := range tests {
 			test.perform(t, serverURL, r)
 		}
