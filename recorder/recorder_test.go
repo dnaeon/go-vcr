@@ -126,16 +126,14 @@ func TestRecord(t *testing.T) {
 	}
 
 	// Re-run without the actual server
-	func() {
-		r, err := recorder.New(cassPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer r.Stop()
+	r, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
 
-		t.Log("replaying")
-		for _, test := range tests {
-			test.perform(t, serverURL, r)
-		}
-	}()
+	t.Log("replaying")
+	for _, test := range tests {
+		test.perform(t, serverURL, r)
+	}
 }
