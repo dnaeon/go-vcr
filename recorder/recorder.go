@@ -86,8 +86,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 
 	// Perform client request to it's original
 	// destination and record interactions
-	body := ioutil.NopCloser(r.Body)
-	req, err := http.NewRequest(r.Method, r.URL.String(), body)
+	req, err := http.NewRequest(r.Method, r.URL.String(), r.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -98,10 +97,13 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 		return nil, err
 	}
 
-	// Record the interaction and add it to the cassette
-	reqBody, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		return nil, err
+	var reqBody []byte
+	if req.Body != nil {
+		// Record the interaction and add it to the cassette
+		reqBody, err = ioutil.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	respBody, err := ioutil.ReadAll(resp.Body)
