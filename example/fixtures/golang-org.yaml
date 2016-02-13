@@ -4,11 +4,7 @@ interactions:
 - request:
     body: ""
     form: {}
-    headers:
-      Accept-Encoding:
-      - gzip
-      User-Agent:
-      - Go-http-client/1.1
+    headers: {}
     url: http://golang.org/
     method: GET
   response:
@@ -117,7 +113,7 @@ interactions:
       Content-Type:
       - text/html; charset=utf-8
       Date:
-      - Mon, 25 Jan 2016 10:16:39 GMT
+      - Sat, 13 Feb 2016 11:33:08 GMT
       Server:
       - Google Frontend
     status: 200 OK
