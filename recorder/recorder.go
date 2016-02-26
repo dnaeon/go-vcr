@@ -57,8 +57,13 @@ type Recorder struct {
 	Transport *Transport
 }
 
+// SetClient can be used to configure the behavior of the 'real' client used in record-mode
+func (r *Recorder) SetClient(client *http.Client) {
+	r.Transport.client = client
+}
+
 // Proxies client requests to their original destination
-func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.Interaction, error) {
+func requestHandler(r *http.Request, c *cassette.Cassette, mode int, client *http.Client) (*cassette.Interaction, error) {
 	// Return interaction from cassette if in replay mode
 	if mode == ModeReplaying {
 		return c.GetInteraction(r)
@@ -89,7 +94,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int) (*cassette.
 
 	// Perform client request to it's original
 	// destination and record interactions
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := client.Do(r)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +155,8 @@ func New(cassetteName string) (*Recorder, error) {
 		Transport: transport,
 	}
 
+	r.SetClient(http.DefaultClient)
+
 	return r, nil
 }
 
@@ -166,15 +173,16 @@ func (r *Recorder) Stop() error {
 
 // Transport either records or replays responses from a cassette, depending on its mode
 type Transport struct {
-	c    *cassette.Cassette
-	mode int
+	c      *cassette.Cassette
+	mode   int
+	client *http.Client
 }
 
 // RoundTrip implements the http.RoundTripper interface
 func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// Pass cassette and mode to handler, so that interactions can be
 	// retrieved or recorded depending on the current recorder mode
-	interaction, err := requestHandler(r, t.c, t.mode)
+	interaction, err := requestHandler(r, t.c, t.mode, t.client)
 
 	if err != nil {
 		panic(fmt.Errorf("Failed to process request for URL %s: %s", r.URL, err))
