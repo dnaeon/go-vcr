@@ -35,7 +35,7 @@ import (
 	"net/http/httputil"
 	"os"
 
-	"github.com/mikesnare/go-vcr/cassette"
+	"github.com/dnaeon/go-vcr/cassette"
 )
 
 // Recorder states
