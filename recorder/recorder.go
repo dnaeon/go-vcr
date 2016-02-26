@@ -185,7 +185,7 @@ func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	interaction, err := requestHandler(r, t.c, t.mode, t.client)
 
 	if err != nil {
-		panic(fmt.Errorf("Failed to process request for URL %s: %s", r.URL, err))
+		return nil, err
 	}
 
 	buf := bytes.NewBuffer([]byte(interaction.Response.Body))
