@@ -73,6 +73,29 @@ func main() {
 }
 ```
 
+## Custom Request Matching
+During replay mode, You can customize the way incoming requests are
+matched against the recorded request/response pairs by defining a
+Matcher function. For example, the following matcher will match on
+method, URL and body:
+
+```
+r, err := recorder.New("fixtures/matchers")
+if err != nil {
+	log.Fatal(err)
+}
+defer r.Stop() // Make sure recorder is stopped once done with it
+
+r.SetMatcher(func(r *http.Request, i cassette.Request) bool {
+    var b bytes.Buffer
+	if _, err := b.ReadFrom(r.Body); err != nil {
+		return false
+	}
+	r.Body = ioutil.NopCloser(&b)
+	return cassette.DefaultMatcher(r, i) && (b.String() == "" || b.String() == i.Body)
+})
+```
+
 ## License
 
 `go-vcr` is Open Source and licensed under the

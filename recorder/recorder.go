@@ -208,3 +208,8 @@ func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 func (t *Transport) CancelRequest(req *http.Request) {
 	// noop
 }
+
+// SetMatcher sets a function to match requests against recorded HTTP interactions.
+func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
+	r.cassette.Matcher = matcher
+}
