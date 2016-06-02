@@ -35,7 +35,7 @@ import (
 	"net/http/httputil"
 	"os"
 
-	"github.com/dnaeon/go-vcr/cassette"
+	"github.com/bigcommerce-labs/go-vcr/cassette"
 )
 
 // Recorder states
@@ -207,4 +207,9 @@ func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 // CancelRequest implements the github.com/coreos/etcd/client.CancelableTransport interface
 func (t *Transport) CancelRequest(req *http.Request) {
 	// noop
+}
+
+// SetMatcher sets a function to match requests against recorded HTTP interactions.
+func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
+	r.cassette.Matcher = matcher
 }

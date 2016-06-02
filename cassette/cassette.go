@@ -89,6 +89,17 @@ type Interaction struct {
 	Response `yaml:"response"`
 }
 
+// Matcher function returns true when the actual request matches
+// a single HTTP interaction's request according to the function's
+// own criteria.
+type Matcher func(*http.Request, Request) bool
+
+// Default Matcher is used when a custom matcher is not defined
+// and compares only the method and URL.
+func DefaultMatcher(r *http.Request, i Request) bool {
+	return r.Method == i.Method && r.URL.String() == i.URL
+}
+
 // Cassette type
 type Cassette struct {
 	// Name of the cassette
@@ -102,6 +113,9 @@ type Cassette struct {
 
 	// Interactions between client and server
 	Interactions []*Interaction `yaml:"interactions"`
+
+	// Matches actual request with interaction requests.
+	Matcher Matcher `yaml:"-"`
 }
 
 // New creates a new empty cassette
@@ -111,6 +125,7 @@ func New(name string) *Cassette {
 		File:         fmt.Sprintf("%s.yaml", name),
 		Version:      cassetteFormatV1,
 		Interactions: make([]*Interaction, 0),
+		Matcher:      DefaultMatcher,
 	}
 
 	return c
@@ -137,7 +152,7 @@ func (c *Cassette) AddInteraction(i *Interaction) {
 // GetInteraction retrieves a recorded request/response interaction
 func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 	for _, i := range c.Interactions {
-		if r.Method == i.Request.Method && r.URL.String() == i.Request.URL {
+		if c.Matcher(r, i.Request) {
 			return i, nil
 		}
 	}

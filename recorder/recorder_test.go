@@ -36,8 +36,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dnaeon/go-vcr/cassette"
-	"github.com/dnaeon/go-vcr/recorder"
+	"bytes"
+	"github.com/bigcommerce-labs/go-vcr/cassette"
+	"github.com/bigcommerce-labs/go-vcr/recorder"
 )
 
 type recordTest struct {
@@ -82,6 +83,11 @@ func TestRecord(t *testing.T) {
 			method: "POST",
 			body:   "post body",
 			out:    "POST " + runID + "\npost body",
+		},
+		{
+			method: "POST",
+			body:   "alt body",
+			out:    "POST " + runID + "\nalt body",
 		},
 	}
 
@@ -144,6 +150,17 @@ func TestRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Stop()
+
+	// Use a custom matcher that includes matching on request body
+	r.SetMatcher(func(r *http.Request, i cassette.Request) bool {
+		var b bytes.Buffer
+		if _, err := b.ReadFrom(r.Body); err != nil {
+			t.Fatalf("unable to read request body: %s", err)
+			return false
+		}
+		r.Body = ioutil.NopCloser(&b)
+		return cassette.DefaultMatcher(r, i) && (b.String() == "" || b.String() == i.Body)
+	})
 
 	t.Log("replaying")
 	for _, test := range tests {
