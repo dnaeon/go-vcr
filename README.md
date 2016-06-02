@@ -80,7 +80,7 @@ Matcher function. For example, the following matcher will match on
 method, URL and body:
 
 ```
-r, err := recorder.New("fixtures/etcd")
+r, err := recorder.New("fixtures/matchers")
 if err != nil {
 	log.Fatal(err)
 }

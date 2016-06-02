@@ -37,8 +37,8 @@ import (
 	"time"
 
 	"bytes"
-	"github.com/bigcommerce-labs/go-vcr/cassette"
-	"github.com/bigcommerce-labs/go-vcr/recorder"
+	"github.com/dnaeon/go-vcr/cassette"
+	"github.com/dnaeon/go-vcr/recorder"
 )
 
 type recordTest struct {
