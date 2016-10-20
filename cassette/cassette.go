@@ -32,6 +32,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"gopkg.in/yaml.v2"
 )
@@ -111,6 +112,7 @@ type Cassette struct {
 	// Cassette format version
 	Version int `yaml:"version"`
 
+	sync.RWMutex
 	// Interactions between client and server
 	Interactions []*Interaction `yaml:"interactions"`
 
@@ -146,11 +148,15 @@ func Load(name string) (*Cassette, error) {
 
 // AddInteraction appends a new interaction to the cassette
 func (c *Cassette) AddInteraction(i *Interaction) {
+	c.Lock()
 	c.Interactions = append(c.Interactions, i)
+	c.Unlock()
 }
 
 // GetInteraction retrieves a recorded request/response interaction
 func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
+	c.RLock()
+	defer c.RUnlock()
 	for _, i := range c.Interactions {
 		if c.Matcher(r, i.Request) {
 			return i, nil
@@ -162,6 +168,8 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 
 // Save writes the cassette data on disk for future re-use
 func (c *Cassette) Save() error {
+	c.RLock()
+	defer c.RUnlock()
 	// Save cassette file only if there were any interactions made
 	if len(c.Interactions) == 0 {
 		return nil
