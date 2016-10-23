@@ -38,17 +38,21 @@ import (
 	"github.com/dnaeon/go-vcr/cassette"
 )
 
+// Mode represents recording/playback mode
+type Mode int
+
 // Recorder states
 const (
-	ModeRecording = iota
+	ModeRecording Mode = iota
 	ModeReplaying
+	ModeDisabled
 )
 
 // Recorder represents a type used to record and replay
 // client and server interactions
 type Recorder struct {
 	// Operating mode of the recorder
-	mode int
+	mode Mode
 
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
@@ -57,13 +61,13 @@ type Recorder struct {
 	Transport *Transport
 }
 
-// SetClient can be used to configure the behavior of the 'real' client used in record-mode
-func (r *Recorder) SetClient(client *http.Client) {
-	r.Transport.client = client
+// SetTransport can be used to configure the behavior of the 'real' client used in record-mode
+func (r *Recorder) SetTransport(t http.RoundTripper) {
+	r.Transport.realTransport = t
 }
 
 // Proxies client requests to their original destination
-func requestHandler(r *http.Request, c *cassette.Cassette, mode int, client *http.Client) (*cassette.Interaction, error) {
+func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransport http.RoundTripper) (*cassette.Interaction, error) {
 	// Return interaction from cassette if in replay mode
 	if mode == ModeReplaying {
 		return c.GetInteraction(r)
@@ -94,7 +98,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int, client *htt
 
 	// Perform client request to it's original
 	// destination and record interactions
-	resp, err := client.Do(r)
+	resp, err := realTransport.RoundTrip(r)
 	if err != nil {
 		return nil, err
 	}
@@ -127,13 +131,18 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode int, client *htt
 
 // New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
-	var mode int
+	// Default mode is "replay" if file exists
+	return NewAsMode(cassetteName, ModeReplaying, nil)
+}
+
+// NewAsMode creates a new recorder in the specified mode
+func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) (*Recorder, error) {
 	var c *cassette.Cassette
 	cassetteFile := fmt.Sprintf("%s.yaml", cassetteName)
 
 	// Depending on whether the cassette file exists or not we
 	// either create a new empty cassette or load from file
-	if _, err := os.Stat(cassetteFile); os.IsNotExist(err) {
+	if _, err := os.Stat(cassetteFile); os.IsNotExist(err) || mode == ModeRecording {
 		// Create new cassette and enter in recording mode
 		c = cassette.New(cassetteName)
 		mode = ModeRecording
@@ -146,16 +155,17 @@ func New(cassetteName string) (*Recorder, error) {
 		mode = ModeReplaying
 	}
 
+	if realTransport == nil {
+		realTransport = http.DefaultTransport
+	}
 	// A transport which can be used by clients to inject
-	transport := &Transport{c: c, mode: mode}
+	transport := &Transport{realTransport: realTransport, mode: mode, c: c}
 
 	r := &Recorder{
 		mode:      mode,
 		cassette:  c,
 		Transport: transport,
 	}
-
-	r.SetClient(http.DefaultClient)
 
 	return r, nil
 }
@@ -173,16 +183,19 @@ func (r *Recorder) Stop() error {
 
 // Transport either records or replays responses from a cassette, depending on its mode
 type Transport struct {
-	c      *cassette.Cassette
-	mode   int
-	client *http.Client
+	c             *cassette.Cassette
+	mode          Mode
+	realTransport http.RoundTripper
 }
 
 // RoundTrip implements the http.RoundTripper interface
 func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if t.mode == ModeDisabled {
+		return t.realTransport.RoundTrip(r)
+	}
 	// Pass cassette and mode to handler, so that interactions can be
 	// retrieved or recorded depending on the current recorder mode
-	interaction, err := requestHandler(r, t.c, t.mode, t.client)
+	interaction, err := requestHandler(r, t.c, t.mode, t.realTransport)
 
 	if err != nil {
 		return nil, err
