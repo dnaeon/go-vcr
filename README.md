@@ -51,7 +51,7 @@ func main() {
 	cfg := client.Config{
 		Endpoints:               []string{"http://127.0.0.1:2379"},
 		HeaderTimeoutPerRequest: time.Second,
-		Transport:               r.Transport, // Inject our transport!
+		Transport:               r, // Inject as transport!
 	}
 
 	// Create an etcd client using the above configuration

@@ -57,13 +57,13 @@ type Recorder struct {
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
 
-	// Transport that can be used by clients to inject
-	Transport *Transport
+	// realTransport is the underlying http.RoundTripper to make real requests
+	realTransport http.RoundTripper
 }
 
 // SetTransport can be used to configure the behavior of the 'real' client used in record-mode
 func (r *Recorder) SetTransport(t http.RoundTripper) {
-	r.Transport.realTransport = t
+	r.realTransport = t
 }
 
 // Proxies client requests to their original destination
@@ -158,13 +158,11 @@ func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) 
 	if realTransport == nil {
 		realTransport = http.DefaultTransport
 	}
-	// A transport which can be used by clients to inject
-	transport := &Transport{realTransport: realTransport, mode: mode, c: c}
 
 	r := &Recorder{
-		mode:      mode,
-		cassette:  c,
-		Transport: transport,
+		mode:          mode,
+		cassette:      c,
+		realTransport: realTransport,
 	}
 
 	return r, nil
@@ -181,21 +179,14 @@ func (r *Recorder) Stop() error {
 	return nil
 }
 
-// Transport either records or replays responses from a cassette, depending on its mode
-type Transport struct {
-	c             *cassette.Cassette
-	mode          Mode
-	realTransport http.RoundTripper
-}
-
 // RoundTrip implements the http.RoundTripper interface
-func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if t.mode == ModeDisabled {
-		return t.realTransport.RoundTrip(r)
+func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	if r.mode == ModeDisabled {
+		return r.realTransport.RoundTrip(req)
 	}
 	// Pass cassette and mode to handler, so that interactions can be
 	// retrieved or recorded depending on the current recorder mode
-	interaction, err := requestHandler(r, t.c, t.mode, t.realTransport)
+	interaction, err := requestHandler(req, r.cassette, r.mode, r.realTransport)
 
 	if err != nil {
 		return nil, err
@@ -209,7 +200,7 @@ func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		Proto:         "HTTP/1.0",
 		ProtoMajor:    1,
 		ProtoMinor:    0,
-		Request:       r,
+		Request:       req,
 		Header:        interaction.Response.Headers,
 		Close:         true,
 		ContentLength: int64(buf.Len()),
@@ -218,8 +209,8 @@ func (t *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // CancelRequest implements the github.com/coreos/etcd/client.CancelableTransport interface
-func (t *Transport) CancelRequest(req *http.Request) {
-	// noop
+func (r *Recorder) CancelRequest(req *http.Request) {
+	r.CancelRequest(req)
 }
 
 // SetMatcher sets a function to match requests against recorded HTTP interactions.
