@@ -4,6 +4,8 @@ go:
   - 1.7
   - tip
 
+go_import_path: github.com/dnaeon/go-vcr
+
 install:
   - make get
 

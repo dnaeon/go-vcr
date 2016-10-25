@@ -43,7 +43,7 @@ func TestHTTPS(t *testing.T) {
 
 	// Create an HTTP client and inject our transport
 	client := &http.Client{
-		Transport: r.Transport, // Inject our transport!
+		Transport: r, // Inject as transport!
 	}
 
 	url := "https://www.iana.org/domains/reserved"

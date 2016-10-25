@@ -50,7 +50,7 @@ type recordTest struct {
 func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
 	// Create an HTTP client and inject our transport
 	client := &http.Client{
-		Transport: r.Transport, // Inject our transport!
+		Transport: r, // Inject as transport!
 	}
 
 	req, err := http.NewRequest(test.method, url, strings.NewReader(test.body))
