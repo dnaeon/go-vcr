@@ -31,6 +31,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"path"
 	"strings"
 	"testing"
@@ -47,34 +49,8 @@ type recordTest struct {
 	out    string
 }
 
-func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
-	// Create an HTTP client and inject our transport
-	client := &http.Client{
-		Transport: r, // Inject as transport!
-	}
-
-	req, err := http.NewRequest(test.method, url, strings.NewReader(test.body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	content, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.TrimSpace(string(content)) != test.out {
-		t.Fatalf("got:\t%s\n\twant:\t%s", string(content), string(test.out))
-	}
-}
-
-func TestRecord(t *testing.T) {
-	runID := time.Now().Format(time.RFC3339Nano)
-	tests := []recordTest{
+func httpTests(runID string) []recordTest {
+	return []recordTest{
 		{
 			method: "GET",
 			out:    "GET " + runID,
@@ -90,58 +66,23 @@ func TestRecord(t *testing.T) {
 			out:    "POST " + runID + "\nalt body",
 		},
 	}
+}
 
-	dir, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	cassPath := path.Join(dir, "record_test")
-	var serverURL string
-	serverUp := false
+func TestRecord(t *testing.T) {
+	runID, cassPath, tests := setupTests(t, "record_test")
 
-	func() {
-		// Start our recorder
-		r, err := recorder.New(cassPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer r.Stop() // Make sure recorder is stopped once done with it
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "%s %s", r.Method, runID)
-			if r.Body != nil {
-				defer r.Body.Close()
-				fmt.Fprintln(w)
-				io.Copy(w, r.Body)
-			}
-		}))
-		serverUp = true
-		defer func() {
-			server.Close()
-			t.Log("server shut down")
-			serverUp = false
-		}()
-		serverURL = server.URL
-
-		t.Log("recording")
-		for _, test := range tests {
-			test.perform(t, serverURL, r)
-		}
-	}()
+	serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeRecording)
 
 	c, err := cassette.Load(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for i, test := range tests {
 		body := c.Interactions[i].Request.Body
 		if body != test.body {
 			t.Fatalf("got:\t%s\n\twant:\t%s", string(body), string(test.body))
 		}
-	}
-
-	if serverUp {
-		t.Fatal("expected server to have shut down")
 	}
 
 	// Re-run without the actual server
@@ -166,4 +107,126 @@ func TestRecord(t *testing.T) {
 	for _, test := range tests {
 		test.perform(t, serverURL, r)
 	}
+}
+
+func TestModePlaybackMissing(t *testing.T) {
+	// Record initial requests
+	runID, cassPath, tests := setupTests(t, "record_playback_missing_test")
+	httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplaying)
+
+	// setup same path but a new runID so requests won't match
+	runID = time.Now().Format(time.RFC3339Nano)
+	recorder, server := httpRecorderTestSetup(t, runID, cassPath, recorder.ModeReplaying)
+	serverURL := server.URL
+
+	defer server.Close()
+	defer recorder.Stop()
+
+	for _, test := range tests {
+		resp, err := test.performReq(t, serverURL, recorder)
+		if resp != nil {
+			t.Fatalf("Expected response to be nil but was %s", resp)
+		}
+
+		urlErr, ok := err.(*url.Error)
+		if !ok {
+			t.Fatalf("Expected err but was %T %s", err, err)
+		}
+
+		if urlErr.Err != cassette.ErrInteractionNotFound {
+			t.Fatalf("Expected cassette.ErrInteractionNotFound but was %T %s", err, err)
+		}
+	}
+}
+
+func TestModeDisabled(t *testing.T) {
+	runID, cassPath, tests := setupTests(t, "record_disabled_test")
+
+	httpRecorderTest(t, runID, tests, cassPath, recorder.ModeDisabled)
+
+	_, err := cassette.Load(cassPath)
+	// Expect the file to not exist if record is disabled
+	if !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+}
+
+func httpRecorderTestSetup(t *testing.T, runID string, cassPath string, mode recorder.Mode) (*recorder.Recorder, *httptest.Server) {
+	// Start our recorder
+	recorder, err := recorder.NewAsMode(cassPath, mode, http.DefaultTransport)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s %s", r.Method, runID)
+		if r.Body != nil {
+			defer r.Body.Close()
+			fmt.Fprintln(w)
+			io.Copy(w, r.Body)
+		}
+	}))
+
+	return recorder, server
+}
+
+func httpRecorderTest(t *testing.T, runID string, tests []recordTest, cassPath string, mode recorder.Mode) string {
+	recorder, server := httpRecorderTestSetup(t, runID, cassPath, mode)
+	serverURL := server.URL
+
+	t.Log("test http requests")
+	for _, test := range tests {
+		test.perform(t, serverURL, recorder)
+	}
+
+	// Make sure recorder is stopped once done with it
+	server.Close()
+	t.Log("server shut down")
+
+	recorder.Stop()
+	t.Log("recorder stopped")
+
+	return serverURL
+}
+
+func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
+	resp, err := test.performReq(t, url, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	content, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(content)) != test.out {
+		t.Fatalf("got:\t%s\n\twant:\t%s", string(content), string(test.out))
+	}
+}
+
+func (test recordTest) performReq(t *testing.T, url string, r *recorder.Recorder) (*http.Response, error) {
+	// Create an HTTP client and inject our transport
+	client := &http.Client{
+		Transport: r, // Inject as transport!
+	}
+
+	req, err := http.NewRequest(test.method, url, strings.NewReader(test.body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client.Do(req)
+}
+
+func setupTests(t *testing.T, name string) (runID, cassPath string, tests []recordTest) {
+	runID = time.Now().Format(time.RFC3339Nano)
+
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cassPath = path.Join(dir, name)
+	tests = httpTests(runID)
+
+	return
 }

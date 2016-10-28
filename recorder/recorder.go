@@ -140,19 +140,21 @@ func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) 
 	var c *cassette.Cassette
 	cassetteFile := fmt.Sprintf("%s.yaml", cassetteName)
 
-	// Depending on whether the cassette file exists or not we
-	// either create a new empty cassette or load from file
-	if _, err := os.Stat(cassetteFile); os.IsNotExist(err) || mode == ModeRecording {
-		// Create new cassette and enter in recording mode
-		c = cassette.New(cassetteName)
-		mode = ModeRecording
-	} else {
-		// Load cassette from file and enter replay mode
-		c, err = cassette.Load(cassetteName)
-		if err != nil {
-			return nil, err
+	if mode != ModeDisabled {
+		// Depending on whether the cassette file exists or not we
+		// either create a new empty cassette or load from file
+		if _, err := os.Stat(cassetteFile); os.IsNotExist(err) || mode == ModeRecording {
+			// Create new cassette and enter in recording mode
+			c = cassette.New(cassetteName)
+			mode = ModeRecording
+		} else {
+			// Load cassette from file and enter replay mode
+			c, err = cassette.Load(cassetteName)
+			if err != nil {
+				return nil, err
+			}
+			mode = ModeReplaying
 		}
-		mode = ModeReplaying
 	}
 
 	if realTransport == nil {
@@ -215,5 +217,7 @@ func (r *Recorder) CancelRequest(req *http.Request) {
 
 // SetMatcher sets a function to match requests against recorded HTTP interactions.
 func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
-	r.cassette.Matcher = matcher
+	if r.cassette != nil {
+		r.cassette.Matcher = matcher
+	}
 }
