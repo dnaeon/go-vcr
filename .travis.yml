@@ -6,11 +6,14 @@ go:
 
 go_import_path: github.com/dnaeon/go-vcr
 
+before_install:
+- go get github.com/modocache/gover
+
 install:
   - make get
 
 script:
-  - make test
+  - make test_cover
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
