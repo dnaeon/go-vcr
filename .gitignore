@@ -28,3 +28,6 @@ _testmain.go
 
 # Ignore Golang vendor packages
 vendor/
+
+# Ignore test code coverage
+coverage.txt

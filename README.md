@@ -3,6 +3,8 @@
 [![Build Status](https://travis-ci.org/dnaeon/go-vcr.svg)](https://travis-ci.org/dnaeon/go-vcr)
 [![GoDoc](https://godoc.org/github.com/dnaeon/go-vcr?status.svg)](https://godoc.org/github.com/dnaeon/go-vcr)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dnaeon/go-vcr)](https://goreportcard.com/report/github.com/dnaeon/go-vcr)
+[![codecov](https://codecov.io/gh/dnaeon/go-vcr/branch/master/graph/badge.svg)](https://codecov.io/gh/dnaeon/go-vcr)
+
 
 `go-vcr` simplifies testing by recording your HTTP interactions and
 replaying them in future runs in order to provide fast, deterministic
