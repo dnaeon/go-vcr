@@ -194,6 +194,8 @@ func (c *Cassette) Save() error {
 		return err
 	}
 
+	defer f.Close()
+
 	// Honor the YAML structure specification
 	// http://www.yaml.org/spec/1.2/spec.html#id2760395
 	_, err = f.Write([]byte("---\n"))
