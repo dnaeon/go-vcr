@@ -104,6 +104,13 @@ func DefaultMatcher(r *http.Request, i Request) bool {
 	return r.Method == i.Method && r.URL.String() == i.URL
 }
 
+// Filter function allows modification of an interaction before saving.
+type Filter func(*Interaction) error
+
+func DefaultFilter(*Interaction) error {
+	return nil
+}
+
 // Cassette type
 type Cassette struct {
 	// Name of the cassette
@@ -123,6 +130,9 @@ type Cassette struct {
 
 	// Matches actual request with interaction requests.
 	Matcher Matcher `yaml:"-"`
+
+	// Filters interactions before being saved.
+	Filter Filter `yaml:"-"`
 }
 
 // New creates a new empty cassette
@@ -133,6 +143,7 @@ func New(name string) *Cassette {
 		Version:      cassetteFormatV1,
 		Interactions: make([]*Interaction, 0),
 		Matcher:      DefaultMatcher,
+		Filter:       DefaultFilter,
 	}
 
 	return c
