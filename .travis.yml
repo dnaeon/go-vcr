@@ -1,6 +1,7 @@
 language: go
 
 go:
+  - 1.9
   - 1.8
   - 1.7
   - tip
@@ -18,3 +19,7 @@ script:
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
+
+matrix:
+  allow_failures:
+    - go: tip
