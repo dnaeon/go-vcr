@@ -194,20 +194,25 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	buf := bytes.NewBuffer([]byte(interaction.Response.Body))
+	select {
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
+	default:
+		buf := bytes.NewBuffer([]byte(interaction.Response.Body))
 
-	return &http.Response{
-		Status:        interaction.Response.Status,
-		StatusCode:    interaction.Response.Code,
-		Proto:         "HTTP/1.0",
-		ProtoMajor:    1,
-		ProtoMinor:    0,
-		Request:       req,
-		Header:        interaction.Response.Headers,
-		Close:         true,
-		ContentLength: int64(buf.Len()),
-		Body:          ioutil.NopCloser(buf),
-	}, nil
+		return &http.Response{
+			Status:        interaction.Response.Status,
+			StatusCode:    interaction.Response.Code,
+			Proto:         "HTTP/1.0",
+			ProtoMajor:    1,
+			ProtoMinor:    0,
+			Request:       req,
+			Header:        interaction.Response.Headers,
+			Close:         true,
+			ContentLength: int64(buf.Len()),
+			Body:          ioutil.NopCloser(buf),
+		}, nil
+	}
 }
 
 // CancelRequest implements the github.com/coreos/etcd/client.CancelableTransport interface

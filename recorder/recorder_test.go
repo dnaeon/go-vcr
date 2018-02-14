@@ -26,6 +26,7 @@
 package recorder_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -39,6 +40,7 @@ import (
 	"time"
 
 	"bytes"
+
 	"github.com/dnaeon/go-vcr/cassette"
 	"github.com/dnaeon/go-vcr/recorder"
 )
@@ -109,6 +111,28 @@ func TestRecord(t *testing.T) {
 	}
 }
 
+func TestModeContextTimeout(t *testing.T) {
+	// Record initial requests
+	runID, cassPath, tests := setupTests(t, "record_playback_timeout")
+	serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplaying)
+
+	// Re-run without the actual server
+	r, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+
+	for _, test := range tests {
+		ctx, cancelFn := context.WithCancel(context.Background())
+		cancelFn()
+		_, err := test.performReq(t, ctx, serverURL, r)
+		if err == nil {
+			t.Fatal("Expected cancellation error")
+		}
+	}
+}
+
 func TestModePlaybackMissing(t *testing.T) {
 	// Record initial requests
 	runID, cassPath, tests := setupTests(t, "record_playback_missing_test")
@@ -123,7 +147,7 @@ func TestModePlaybackMissing(t *testing.T) {
 	defer recorder.Stop()
 
 	for _, test := range tests {
-		resp, err := test.performReq(t, serverURL, recorder)
+		resp, err := test.performReq(t, context.Background(), serverURL, recorder)
 		if resp != nil {
 			t.Fatalf("Expected response to be nil but was %s", resp)
 		}
@@ -190,7 +214,7 @@ func httpRecorderTest(t *testing.T, runID string, tests []recordTest, cassPath s
 }
 
 func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
-	resp, err := test.performReq(t, url, r)
+	resp, err := test.performReq(t, context.Background(), url, r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +229,7 @@ func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
 	}
 }
 
-func (test recordTest) performReq(t *testing.T, url string, r *recorder.Recorder) (*http.Response, error) {
+func (test recordTest) performReq(t *testing.T, ctx context.Context, url string, r *recorder.Recorder) (*http.Response, error) {
 	// Create an HTTP client and inject our transport
 	client := &http.Client{
 		Transport: r, // Inject as transport!
@@ -215,7 +239,7 @@ func (test recordTest) performReq(t *testing.T, url string, r *recorder.Recorder
 	if err != nil {
 		t.Fatal(err)
 	}
-	return client.Do(req)
+	return client.Do(req.WithContext(ctx))
 }
 
 func setupTests(t *testing.T, name string) (runID, cassPath string, tests []recordTest) {
