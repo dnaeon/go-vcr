@@ -217,7 +217,12 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // CancelRequest implements the github.com/coreos/etcd/client.CancelableTransport interface
 func (r *Recorder) CancelRequest(req *http.Request) {
-	r.CancelRequest(req)
+	type cancelableTransport interface {
+		CancelRequest(req *http.Request)
+	}
+	if ct, ok := r.realTransport.(cancelableTransport); ok {
+		ct.CancelRequest(req)
+	}
 }
 
 // SetMatcher sets a function to match requests against recorded HTTP interactions.
