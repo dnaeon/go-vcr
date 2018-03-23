@@ -34,6 +34,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"time"
 
 	"github.com/dnaeon/go-vcr/cassette"
 )
@@ -199,6 +200,15 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, req.Context().Err()
 	default:
 		buf := bytes.NewBuffer([]byte(interaction.Response.Body))
+		// apply the duration defined in the interaction
+		if interaction.Response.Duration != "" {
+			d, err := time.ParseDuration(interaction.Duration)
+			if err != nil {
+				return nil, err
+			}
+			// block for the configured 'duration' to simulate the network latency and server processing time.
+			<-time.After(d)
+		}
 
 		return &http.Response{
 			Status:        interaction.Response.Status,

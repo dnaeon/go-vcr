@@ -118,3 +118,4 @@ interactions:
       - Google Frontend
     status: 200 OK
     code: 200
+    duration: 2s
