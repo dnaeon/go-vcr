@@ -149,7 +149,7 @@ func TestModePlaybackMissing(t *testing.T) {
 	for _, test := range tests {
 		resp, err := test.performReq(t, context.Background(), serverURL, recorder)
 		if resp != nil {
-			t.Fatalf("Expected response to be nil but was %s", resp)
+			t.Fatalf("Expected response to be nil but was %v", resp)
 		}
 
 		urlErr, ok := err.(*url.Error)

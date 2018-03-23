@@ -81,6 +81,9 @@ type Response struct {
 
 	// Response status code
 	Code int `yaml:"code"`
+
+	// Response duration (something like "100ms" or "10s")
+	Duration string `yaml:"duration"`
 }
 
 // Interaction type contains a pair of request/response for a
@@ -95,7 +98,7 @@ type Interaction struct {
 // own criteria.
 type Matcher func(*http.Request, Request) bool
 
-// Default Matcher is used when a custom matcher is not defined
+// DefaultMatcher is used when a custom matcher is not defined
 // and compares only the method and URL.
 func DefaultMatcher(r *http.Request, i Request) bool {
 	return r.Method == i.Method && r.URL.String() == i.URL
