@@ -81,7 +81,7 @@ matched against the recorded request/response pairs by defining a
 Matcher function. For example, the following matcher will match on
 method, URL and body:
 
-```
+```go
 r, err := recorder.New("fixtures/matchers")
 if err != nil {
 	log.Fatal(err)
