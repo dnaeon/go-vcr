@@ -46,26 +46,34 @@ import (
 )
 
 type recordTest struct {
-	method string
-	body   string
-	out    string
+	method         string
+	body           string
+	want           string
+	wantContentLen int
 }
 
 func httpTests(runID string) []recordTest {
 	return []recordTest{
 		{
-			method: "GET",
-			out:    "GET " + runID,
+			method:         "GET",
+			want:           "GET " + runID + "\n",
+			wantContentLen: 4 + len(runID) + 1,
 		},
 		{
-			method: "POST",
-			body:   "post body",
-			out:    "POST " + runID + "\npost body",
+			method:         "HEAD",
+			wantContentLen: 5 + len(runID) + 1,
 		},
 		{
-			method: "POST",
-			body:   "alt body",
-			out:    "POST " + runID + "\nalt body",
+			method:         "POST",
+			body:           "post body",
+			want:           "POST " + runID + "\npost body",
+			wantContentLen: 5 + len(runID) + 10,
+		},
+		{
+			method:         "POST",
+			body:           "alt body",
+			want:           "POST " + runID + "\nalt body",
+			wantContentLen: 5 + len(runID) + 9,
 		},
 	}
 }
@@ -224,8 +232,11 @@ func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(string(content)) != test.out {
-		t.Fatalf("got:\t%s\n\twant:\t%s", string(content), string(test.out))
+	if string(content) != test.want {
+		t.Fatalf("got:\t%s\n\twant:\t%s", string(content), test.want)
+	}
+	if resp.ContentLength != int64(test.wantContentLen) {
+		t.Fatalf("got ContentLength %d want %d", resp.ContentLength, test.wantContentLen)
 	}
 }
 
