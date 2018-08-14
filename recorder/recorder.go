@@ -34,6 +34,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/dnaeon/go-vcr/cassette"
@@ -210,6 +211,18 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 			<-time.After(d)
 		}
 
+		contentLength := int64(buf.Len())
+		// For HTTP HEAD requests, the ContentLength should be set to the size
+		// of the body that would have been sent for a GET.
+		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.13
+		if req.Method == "HEAD" {
+			if hdr := interaction.Response.Headers.Get("Content-Length"); hdr != "" {
+				cl, err := strconv.ParseInt(hdr, 10, 64)
+				if err == nil {
+					contentLength = cl
+				}
+			}
+		}
 		return &http.Response{
 			Status:        interaction.Response.Status,
 			StatusCode:    interaction.Response.Code,
@@ -219,7 +232,7 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 			Request:       req,
 			Header:        interaction.Response.Headers,
 			Close:         true,
-			ContentLength: int64(buf.Len()),
+			ContentLength: contentLength,
 			Body:          ioutil.NopCloser(buf),
 		}, nil
 	}
