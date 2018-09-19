@@ -127,8 +127,8 @@ func TestModeContextTimeout(t *testing.T) {
 		ctx, cancelFn := context.WithCancel(context.Background())
 		cancelFn()
 		_, err := test.performReq(t, ctx, serverURL, r)
-		if err == nil {
-			t.Fatal("Expected cancellation error")
+		if err == nil || err == cassette.ErrInteractionNotFound {
+			t.Fatalf("Expected cancellation error, got %v", err)
 		}
 	}
 }

@@ -71,6 +71,9 @@ func (r *Recorder) SetTransport(t http.RoundTripper) {
 func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransport http.RoundTripper) (*cassette.Interaction, error) {
 	// Return interaction from cassette if in replay mode
 	if mode == ModeReplaying {
+		if err := r.Context().Err(); err != nil {
+			return nil, err
+		}
 		return c.GetInteraction(r)
 	}
 
