@@ -107,6 +107,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -128,6 +129,12 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 			Status:  resp.Status,
 			Code:    resp.StatusCode,
 		},
+	}
+	for _, filter := range c.Filters {
+		err = filter(interaction)
+		if err != nil {
+			return nil, err
+		}
 	}
 	c.AddInteraction(interaction)
 
@@ -255,5 +262,14 @@ func (r *Recorder) CancelRequest(req *http.Request) {
 func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
 	if r.cassette != nil {
 		r.cassette.Matcher = matcher
+	}
+}
+
+// AddFilter appends a hook to modify a request before it is recorded.
+//
+// Filters are useful for filtering out sensitive parameters from the recorded data.
+func (r *Recorder) AddFilter(filter cassette.Filter) {
+	if r.cassette != nil {
+		r.cassette.Filters = append(r.cassette.Filters, filter)
 	}
 }

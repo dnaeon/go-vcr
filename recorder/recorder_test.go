@@ -183,6 +183,47 @@ func TestModeDisabled(t *testing.T) {
 	}
 }
 
+func TestFilter(t *testing.T) {
+	dummyBody := "[REDACTED]"
+
+	runID, cassPath, tests := setupTests(t, "test_filter")
+	recorder, server := httpRecorderTestSetup(t, runID, cassPath, recorder.ModeRecording)
+	serverURL := server.URL
+
+	// Add a filter which replaces each request body in the stored cassette:
+	recorder.AddFilter(func(i *cassette.Interaction) error {
+		i.Request.Body = dummyBody
+		return nil
+	})
+
+	t.Log("make http requests")
+	for _, test := range tests {
+		test.perform(t, serverURL, recorder)
+	}
+
+	// Make sure recorder is stopped once done with it
+	server.Close()
+	t.Log("server shut down")
+
+	recorder.Stop()
+	t.Log("recorder stopped")
+
+	// Load the cassette we just stored:
+	c, err := cassette.Load(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert that each body has been set to our dummy value
+	for i := range tests {
+		body := c.Interactions[i].Request.Body
+		if body != dummyBody {
+			t.Fatalf("got:\t%s\n\twant:\t%s", string(body), string(dummyBody))
+		}
+	}
+
+}
+
 func httpRecorderTestSetup(t *testing.T, runID string, cassPath string, mode recorder.Mode) (*recorder.Recorder, *httptest.Server) {
 	// Start our recorder
 	recorder, err := recorder.NewAsMode(cassPath, mode, http.DefaultTransport)
