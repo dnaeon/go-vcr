@@ -98,6 +98,30 @@ r.SetMatcher(func(r *http.Request, i cassette.Request) bool {
 })
 ```
 
+## Protecting Sensitive Data
+
+You often provide sensitive data, such as API credentials, when making
+requests against a service.
+By default, this data will be stored in the recorded data but you probably
+don't want this.
+Removing or replacing data before it is stored can be done by adding one or
+more `Filter`s to your `Recorder`.
+Here is an example that removes the `Authorization` header from all requests:
+
+```go
+r, err := recorder.New("fixtures/filters")
+if err != nil {
+	log.Fatal(err)
+}
+defer r.Stop() // Make sure recorder is stopped once done with it
+
+// Add a filter which removes Authorization headers from all requests:
+recorder.AddFilter(func(i *cassette.Interaction) error {
+    delete(i.Request.Header, "Authorization")
+    return nil
+})
+```
+
 ## License
 
 `go-vcr` is Open Source and licensed under the
