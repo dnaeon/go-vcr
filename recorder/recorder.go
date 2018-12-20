@@ -96,7 +96,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 	}
 
 	reqBody := &bytes.Buffer{}
-	if r.Body != nil && r.Body != http.NoBody {
+	if r.Body != nil && !isNoBody(r.Body) {
 		// Record the request body so we can add it to the cassette
 		r.Body = ioutil.NopCloser(io.TeeReader(r.Body, reqBody))
 	}
