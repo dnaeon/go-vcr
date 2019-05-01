@@ -116,7 +116,7 @@ if err != nil {
 defer r.Stop() // Make sure recorder is stopped once done with it
 
 // Add a filter which removes Authorization headers from all requests:
-recorder.AddFilter(func(i *cassette.Interaction) error {
+r.AddFilter(func(i *cassette.Interaction) error {
     delete(i.Request.Headers, "Authorization")
     return nil
 })
