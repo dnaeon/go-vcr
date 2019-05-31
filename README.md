@@ -89,6 +89,9 @@ if err != nil {
 defer r.Stop() // Make sure recorder is stopped once done with it
 
 r.SetMatcher(func(r *http.Request, i cassette.Request) bool {
+	if r.Body == nil {
+		return cassette.DefaultMatcher(r, i)
+	}
 	var b bytes.Buffer
 	if _, err := b.ReadFrom(r.Body); err != nil {
 		return false
