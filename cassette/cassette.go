@@ -129,8 +129,13 @@ type Cassette struct {
 	// Matches actual request with interaction requests.
 	Matcher Matcher `yaml:"-"`
 
-	// Filters interactions before being saved.
+	// Filters filter interactions before saving and returning them.
+	// They combine the logic of SaveFilters and ReturnFilters.
 	Filters []Filter `yaml:"-"`
+	// SaveFilters filter interactions before being saved.
+	SaveFilters []Filter `yaml:"-"`
+	// ReturnFilters filter interactions before returning them.
+	ReturnFilters []Filter `yaml:"-"`
 }
 
 // New creates a new empty cassette

@@ -114,8 +114,8 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 		return nil, err
 	}
 
-	// Add interaction to cassette
-	interaction := &cassette.Interaction{
+	// The interaction to return to the caller
+	interactionToReturn := cassette.Interaction{
 		Request: cassette.Request{
 			Body:    reqBody.String(),
 			Form:    copiedReq.PostForm,
@@ -130,15 +130,32 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 			Code:    resp.StatusCode,
 		},
 	}
+	// The interaction to save to the cassette
+	interactionToSave := interactionToReturn
+
 	for _, filter := range c.Filters {
-		err = filter(interaction)
+		err = filter(&interactionToReturn)
+		err = filter(&interactionToSave)
 		if err != nil {
 			return nil, err
 		}
 	}
-	c.AddInteraction(interaction)
+	for _, filter := range c.SaveFilters {
+		err = filter(&interactionToReturn)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, filter := range c.ReturnFilters {
+		err = filter(&interactionToSave)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	return interaction, nil
+	c.AddInteraction(&interactionToSave)
+
+	return &interactionToReturn, nil
 }
 
 // New creates a new recorder
