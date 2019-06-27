@@ -141,12 +141,14 @@ type Cassette struct {
 // New creates a new empty cassette
 func New(name string) *Cassette {
 	c := &Cassette{
-		Name:         name,
-		File:         fmt.Sprintf("%s.yaml", name),
-		Version:      cassetteFormatV1,
-		Interactions: make([]*Interaction, 0),
-		Matcher:      DefaultMatcher,
-		Filters:      make([]Filter, 0),
+		Name:          name,
+		File:          fmt.Sprintf("%s.yaml", name),
+		Version:       cassetteFormatV1,
+		Interactions:  make([]*Interaction, 0),
+		Matcher:       DefaultMatcher,
+		Filters:       make([]Filter, 0),
+		SaveFilters:   make([]Filter, 0),
+		ReturnFilters: make([]Filter, 0),
 	}
 
 	return c
