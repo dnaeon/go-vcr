@@ -33,4 +33,4 @@ import (
 )
 
 // isNoBody returns true iff r is an http.NoBody.
-func isNoBody(r io.ReadCloser) bool { return r == http.NoBody  }
+func isNoBody(r io.ReadCloser) bool { return r == http.NoBody }
