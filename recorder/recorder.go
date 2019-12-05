@@ -50,6 +50,15 @@ const (
 	ModeDisabled
 )
 
+// Matcher function returns true if the given request should be recorded
+type Matcher func(r *http.Request) bool
+
+// DefaultMatcher is used when a custom matcher is not defined
+// and always returns true to record everything
+func DefaultMatcher(r *http.Request) bool {
+	return true
+}
+
 // Recorder represents a type used to record and replay
 // client and server interactions
 type Recorder struct {
@@ -61,11 +70,19 @@ type Recorder struct {
 
 	// realTransport is the underlying http.RoundTripper to make real requests
 	realTransport http.RoundTripper
+
+	// matcher returns true if the given request should be recorded
+	matcher Matcher
 }
 
 // SetTransport can be used to configure the behavior of the 'real' client used in record-mode
 func (r *Recorder) SetTransport(t http.RoundTripper) {
 	r.realTransport = t
+}
+
+// SetRecordingMatcher can be used to configure the requests that should be recorded in the cassette
+func (r *Recorder) SetRecordingMatcher(matcher Matcher) {
+	r.matcher = matcher
 }
 
 // Proxies client requests to their original destination
@@ -177,6 +194,7 @@ func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) 
 		mode:          mode,
 		cassette:      c,
 		realTransport: realTransport,
+		matcher:       DefaultMatcher,
 	}
 
 	return r, nil
@@ -195,9 +213,16 @@ func (r *Recorder) Stop() error {
 
 // RoundTrip implements the http.RoundTripper interface
 func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	// If recorder is disabled, pass through the request and return the response without recording
 	if r.mode == ModeDisabled {
 		return r.realTransport.RoundTrip(req)
 	}
+
+	// If recorder matcher rejects, pass through the request and return the response without recording
+	if r.matcher(req) == false {
+		return r.realTransport.RoundTrip(req)
+	}
+
 	// Pass cassette and mode to handler, so that interactions can be
 	// retrieved or recorded depending on the current recorder mode
 	interaction, err := requestHandler(req, r.cassette, r.mode, r.realTransport)
