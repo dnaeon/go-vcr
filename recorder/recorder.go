@@ -273,3 +273,8 @@ func (r *Recorder) AddFilter(filter cassette.Filter) {
 		r.cassette.Filters = append(r.cassette.Filters, filter)
 	}
 }
+
+// Mode returns recorder state
+func (r *Recorder) Mode() Mode {
+	return r.mode
+}

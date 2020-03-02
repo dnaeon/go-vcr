@@ -81,11 +81,15 @@ func httpTests(runID string) []recordTest {
 func TestRecord(t *testing.T) {
 	runID, cassPath, tests := setupTests(t, "record_test")
 
-	serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeRecording)
+	r, serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeRecording)
 
 	c, err := cassette.Load(cassPath)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if m := r.Mode(); m != recorder.ModeRecording {
+		t.Fatalf("Expected recording mode, got %v", m)
 	}
 
 	for i, test := range tests {
@@ -96,11 +100,15 @@ func TestRecord(t *testing.T) {
 	}
 
 	// Re-run without the actual server
-	r, err := recorder.New(cassPath)
+	r, err = recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Stop()
+
+	if m := r.Mode(); m != recorder.ModeReplaying {
+		t.Fatalf("Expected replaying mode, got %v", m)
+	}
 
 	// Use a custom matcher that includes matching on request body
 	r.SetMatcher(func(r *http.Request, i cassette.Request) bool {
@@ -122,7 +130,7 @@ func TestRecord(t *testing.T) {
 func TestModeContextTimeout(t *testing.T) {
 	// Record initial requests
 	runID, cassPath, tests := setupTests(t, "record_playback_timeout")
-	serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplaying)
+	_, serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplaying)
 
 	// Re-run without the actual server
 	r, err := recorder.New(cassPath)
@@ -174,7 +182,11 @@ func TestModePlaybackMissing(t *testing.T) {
 func TestModeDisabled(t *testing.T) {
 	runID, cassPath, tests := setupTests(t, "record_disabled_test")
 
-	httpRecorderTest(t, runID, tests, cassPath, recorder.ModeDisabled)
+	r, _ := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeDisabled)
+
+	if m := r.Mode(); m != recorder.ModeDisabled {
+		t.Fatalf("Expected disabled mode, got %v", m)
+	}
 
 	_, err := cassette.Load(cassPath)
 	// Expect the file to not exist if record is disabled
@@ -243,7 +255,7 @@ func httpRecorderTestSetup(t *testing.T, runID string, cassPath string, mode rec
 	return recorder, server
 }
 
-func httpRecorderTest(t *testing.T, runID string, tests []recordTest, cassPath string, mode recorder.Mode) string {
+func httpRecorderTest(t *testing.T, runID string, tests []recordTest, cassPath string, mode recorder.Mode) (*recorder.Recorder, string) {
 	recorder, server := httpRecorderTestSetup(t, runID, cassPath, mode)
 	serverURL := server.URL
 
@@ -259,7 +271,7 @@ func httpRecorderTest(t *testing.T, runID string, tests []recordTest, cassPath s
 	recorder.Stop()
 	t.Log("recorder stopped")
 
-	return serverURL
+	return recorder, serverURL
 }
 
 func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
