@@ -195,6 +195,53 @@ func TestModeDisabled(t *testing.T) {
 	}
 }
 
+func TestPassthrough(t *testing.T) {
+	runID, cassPath, tests := setupTests(t, "test_passthrough")
+	recorder, server := httpRecorderTestSetup(t, runID, cassPath, recorder.ModeRecording)
+	serverURL := server.URL
+
+	// Add a passthrough configuration which does not record any requests with
+	// a specific body.
+	recorder.AddPassthrough(func(r *http.Request) bool {
+		if r.Body == nil {
+			return false
+		}
+		var b bytes.Buffer
+		if _, err := b.ReadFrom(r.Body); err != nil {
+			return false
+		}
+		r.Body = ioutil.NopCloser(&b)
+
+		return b.String() == "alt body"
+	})
+
+	t.Log("make http requests")
+	for _, test := range tests {
+		test.perform(t, serverURL, recorder)
+	}
+
+	// Make sure recorder is stopped once done with it
+	server.Close()
+	t.Log("server shut down")
+
+	recorder.Stop()
+	t.Log("recorder stopped")
+
+	// Load the cassette we just stored:
+	c, err := cassette.Load(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert that no body exists matching our pass through test
+	for _, i := range c.Interactions {
+		body := i.Request.Body
+		if body == "alt body" {
+			t.Fatalf("unexpected recording:\t%s", body)
+		}
+	}
+}
+
 func TestFilter(t *testing.T) {
 	dummyBody := "[REDACTED]"
 
