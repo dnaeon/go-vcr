@@ -61,7 +61,13 @@ type Recorder struct {
 
 	// realTransport is the underlying http.RoundTripper to make real requests
 	realTransport http.RoundTripper
+
+	// Pass through requests.
+	Passthroughs []Passthrough
 }
+
+// Passthrough function allows ignoring certain requests.
+type Passthrough func(*http.Request) bool
 
 // SetTransport can be used to configure the behavior of the 'real' client used in record-mode
 func (r *Recorder) SetTransport(t http.RoundTripper) {
@@ -198,6 +204,12 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	if r.mode == ModeDisabled {
 		return r.realTransport.RoundTrip(req)
 	}
+	for _, passthrough := range r.Passthroughs {
+		if passthrough(req) {
+			return r.realTransport.RoundTrip(req)
+		}
+	}
+
 	// Pass cassette and mode to handler, so that interactions can be
 	// retrieved or recorded depending on the current recorder mode
 	interaction, err := requestHandler(req, r.cassette, r.mode, r.realTransport)
@@ -263,6 +275,12 @@ func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
 	if r.cassette != nil {
 		r.cassette.Matcher = matcher
 	}
+}
+
+// AddPassthrough appends a hook to determine if a request should be ignored by the
+// recorder.
+func (r *Recorder) AddPassthrough(pass Passthrough) {
+	r.Passthroughs = append(r.Passthroughs, pass)
 }
 
 // AddFilter appends a hook to modify a request before it is recorded.

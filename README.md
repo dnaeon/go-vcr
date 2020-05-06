@@ -5,7 +5,6 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/dnaeon/go-vcr)](https://goreportcard.com/report/github.com/dnaeon/go-vcr)
 [![codecov](https://codecov.io/gh/dnaeon/go-vcr/branch/master/graph/badge.svg)](https://codecov.io/gh/dnaeon/go-vcr)
 
-
 `go-vcr` simplifies testing by recording your HTTP interactions and
 replaying them in future runs in order to provide fast, deterministic
 and accurate testing of your code.
@@ -76,6 +75,7 @@ func main() {
 ```
 
 ## Custom Request Matching
+
 During replay mode, You can customize the way incoming requests are
 matched against the recorded request/response pairs by defining a
 Matcher function. For example, the following matcher will match on
@@ -122,6 +122,25 @@ defer r.Stop() // Make sure recorder is stopped once done with it
 r.AddFilter(func(i *cassette.Interaction) error {
     delete(i.Request.Headers, "Authorization")
     return nil
+})
+```
+
+## Passing Through Requests
+
+Sometimes you want to allow specific requests to pass through to the remote
+server without recording anything.
+
+Globally, you can use `ModeDisabled` for this, but if you want to disable the
+recorder for individual requests, you can add `Passthrough` functions to the
+recorder. The function takes a pointer to the original request, and returns a
+boolean, indicating if the request should pass through to the remote server.
+
+Here's an example to pass through requests to a specific endpoint:
+
+```go
+// Pass through the request to the remote server if the path matches "/login".
+r.AddPassthrough(func(req *http.Request) bool {
+    return req.URL.Path == "/login"
 })
 ```
 
