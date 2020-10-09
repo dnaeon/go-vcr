@@ -129,8 +129,11 @@ type Cassette struct {
 	// Matches actual request with interaction requests.
 	Matcher Matcher `yaml:"-"`
 
-	// Filters interactions before being saved.
+	// Filters interactions before when they are captured.
 	Filters []Filter `yaml:"-"`
+
+	// SaveFilters are applied to interactions just before they are saved.
+	SaveFilters []Filter `yaml:"-"`
 }
 
 // New creates a new empty cassette
@@ -142,6 +145,7 @@ func New(name string) *Cassette {
 		Interactions: make([]*Interaction, 0),
 		Matcher:      DefaultMatcher,
 		Filters:      make([]Filter, 0),
+		SaveFilters:  make([]Filter, 0),
 	}
 
 	return c
@@ -188,6 +192,14 @@ func (c *Cassette) Save() error {
 	// Save cassette file only if there were any interactions made
 	if len(c.Interactions) == 0 {
 		return nil
+	}
+
+	for _, interaction := range c.Interactions {
+		for _, filter := range c.SaveFilters {
+			if err := filter(interaction); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Create directory for cassette if missing
