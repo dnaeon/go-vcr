@@ -292,6 +292,16 @@ func (r *Recorder) AddFilter(filter cassette.Filter) {
 	}
 }
 
+// AddSaveFilter appends a hook to modify a request before it is saved.
+//
+// This filter is suitable for treating recorded responses to remove sensitive data. Altering responses using a regular
+// AddFilter can have unintended consequences on code that is consuming responses.
+func (r *Recorder) AddSaveFilter(filter cassette.Filter) {
+	if r.cassette != nil {
+		r.cassette.SaveFilters = append(r.cassette.SaveFilters, filter)
+	}
+}
+
 // Mode returns recorder state
 func (r *Recorder) Mode() Mode {
 	return r.mode

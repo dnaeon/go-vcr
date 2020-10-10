@@ -125,6 +125,30 @@ r.AddFilter(func(i *cassette.Interaction) error {
 })
 ```
 
+### Sensitive data in responses 
+
+Filters added using `*Recorder.AddFilter` are applied within VCR's custom `http.Transport`. This means that if you edit a response in such a filter then subsequent test code will see the edited response. This may not be desirable in all cases. For instance, if a response body contains an OAuth access token that is needed for subsequent requests, then redact the access token in `SaveFilter` will result in authorization failures.
+
+Another way to edit recorded interactions is to use `*Recorder.AddSaveFilter`. Filters added with this method are applied just before interactions are saved when `*Recorder.Stop` is called.
+
+```go
+r, err := recorder.New("fixtures/filters")
+if err != nil {
+	log.Fatal(err)
+}
+defer r.Stop() // Make sure recorder is stopped once done with it
+
+// Your test code will continue to see the real access token and
+// it is redacted before the recorded interactions are saved     
+r.AddSaveFilter(func(i *cassette.Interaction) error {
+    if strings.Contains(i.URL, "/oauth/token") {
+        i.Response.Body = `{"access_token": "[REDACTED]"}`
+    }
+
+    return nil
+})
+```    
+
 ## Passing Through Requests
 
 Sometimes you want to allow specific requests to pass through to the remote
