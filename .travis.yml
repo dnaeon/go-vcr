@@ -1,5 +1,7 @@
 language: go
-
+arch:
+  - AMD64
+  - ppc64le
 go:
   - 1.15
   - 1.14
@@ -29,3 +31,11 @@ after_success:
 matrix:
   allow_failures:
     - go: tip
+    - go: 1.7
+      arch: ppc64le
+    - go: 1.8
+      arch: ppc64le
+    - go: 1.9
+      arch: ppc64le
+    - go: 1.10
+      arch: ppc64le
