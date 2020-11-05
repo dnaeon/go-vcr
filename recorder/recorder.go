@@ -277,6 +277,13 @@ func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
 	}
 }
 
+// SetReplayableInteractions defines whether to allow interactions to be replayed or not.
+func (r *Recorder) SetReplayableInteractions(replayable bool) {
+	if r.cassette != nil {
+		r.cassette.ReplayableInteractions = replayable
+	}
+}
+
 // AddPassthrough appends a hook to determine if a request should be ignored by the
 // recorder.
 func (r *Recorder) AddPassthrough(pass Passthrough) {
