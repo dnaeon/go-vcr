@@ -28,3 +28,5 @@ _testmain.go
 
 # Ignore test code coverage
 coverage.txt
+
+.idea/

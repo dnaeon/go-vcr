@@ -125,6 +125,8 @@ type Cassette struct {
 	Mu sync.RWMutex `yaml:"mu,omitempty"`
 	// Interactions between client and server
 	Interactions []*Interaction `yaml:"interactions"`
+	// ReplayableInteractions defines whether to allow interactions to be replayed or not
+	ReplayableInteractions bool `yaml:"-"`
 
 	// Matches actual request with interaction requests.
 	Matcher Matcher `yaml:"-"`
@@ -176,7 +178,7 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	for _, i := range c.Interactions {
-		if !i.replayed && c.Matcher(r, i.Request) {
+		if (c.ReplayableInteractions || !i.replayed) && c.Matcher(r, i.Request) {
 			i.replayed = true
 			return i, nil
 		}
