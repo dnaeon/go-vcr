@@ -2,6 +2,6 @@
 ## explicit
 github.com/modocache/gover
 github.com/modocache/gover/gover
-# gopkg.in/yaml.v2 v2.2.1
+# gopkg.in/yaml.v2 v2.2.8
 ## explicit
 gopkg.in/yaml.v2
