@@ -20,7 +20,7 @@ interactions:
       alt=\"Homepage\"/></a>\n\t\t\t</div>\n\t\t\t<div class=\"navigation\">\n\t\t\t\t<ul>\n\t\t\t\t\t<li><a
       href=\"/domains\">Domains</a></li>\n\t\t\t\t\t<li><a href=\"/numbers\">Numbers</a></li>\n\t\t\t\t\t<li><a
       href=\"/protocols\">Protocols</a></li>\n\t\t\t\t\t<li><a href=\"/about\">About
-      IANA</a></li>\n\t\t\t\t</ul>\n\t\t\t</div>\n\t\t</div>\n\t</header>\n\t\n\t<div
+      Us</a></li>\n\t\t\t\t</ul>\n\t\t\t</div>\n\t\t</div>\n\t</header>\n\t\n\t<div
       id=\"body\">\n\t\n\n\t\t\t<div id=\"main_right\">\n\n\n\t<h1>IANA-managed Reserved
       Domains</h1>\n\n\t<p>Certain domains are set aside, and nominally registered
       to &ldquo;IANA&rdquo;, for specific\n\t\tpolicy or technical purposes.</p>\n\n\t<h2>Example
@@ -86,11 +86,11 @@ interactions:
       Key Signing Key (DNSSEC)</a></li>\n\t\t\t\t\t<ul id=\"nav_dom_dnssec_sub\">\n\t\t\t\t\t\t<li
       id=\"nav_dom_dnssec_top\"><a href=\"/dnssec\">Overview</a></li>\n\t\t\t\t\t\t<li
       id=\"nav_dom_dnssec_ksk\"><a href=\"/dnssec/files\">Trusts Anchors and Keys</a></li>\n\t\t\t\t\t\t<li
-      id=\"nav_dom_dnssec_ceremonies\"><a href=\"/dnssec/ceremonies\">Root KSK Ceremonies</a></li>\n\t\t\t\t\t\t<li
-      id=\"nav_dom_dnssec_dps\"><a href=\"/dnssec/dps\">Practice Statement</a></li>\n
-      \                       <li id=\"nav_dom_dnssec_tcrs\"><a href=\"/dnssec/tcrs\">Community
-      Representatives</a></li>\n\n\t\t\t\t\t\t<li id=\"nav_dom_dnssec_systrust\"><a
-      href=\"/dnssec/systrust\">SysTrust Certification</a></li>\n\t\t\t\t\t</ul>\n\t\t\t\t\t<li
+      id=\"nav_dom_dnssec_ceremonies\"><a href=\"/dnssec/ceremonies\">Key Signing
+      Ceremonies</a></li>\n\t\t\t\t\t\t<li id=\"nav_dom_dnssec_dps\"><a href=\"/dnssec/procedures\">Policies
+      &amp; Procedures</a></li>\n                        <li id=\"nav_dom_dnssec_tcrs\"><a
+      href=\"/dnssec/tcrs\">Community Representatives</a></li>\n                        <li
+      id=\"nav_dom_dnssec_archive\"><a href=\"/dnssec/archive\">Project Archive</a></li>\n\n\t\t\t\t\t</ul>\n\t\t\t\t\t<li
       id=\"nav_dom_special\"><a href=\"/domains/reserved\">Reserved Domains</a></li>\n\t\t\t\t</ul>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t\t\n\n\t</div>\n\n\t<footer>\n\t\t<div
       id=\"footer\">\n\t\t\t<table class=\"navigation\">\n\t\t\t\t<tr>\n\t\t\t\t\t<td
       class=\"section\"><a href=\"/domains\">Domain&nbsp;Names</a></td>\n\t\t\t\t\t<td
@@ -99,41 +99,58 @@ interactions:
       href=\"/domains/arpa\">.ARPA Registry</a></li>\n\t\t\t\t\t\t\t<li><a href=\"/domains/idn-tables\">IDN
       Repository</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t\t<tr>\n\t\t\t\t\t<td
       class=\"section\"><a href=\"/numbers\">Number&nbsp;Resources</a></td>\n\t\t\t\t\t<td
-      class=\"subsection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<!--\n\t\t\t\t\t\t\t<li><a
-      href=\"/numbers/ipv4\">IPv4 Registry</a></li>\n\t\t\t\t\t\t\t<li><a href=\"/numbers/ipv6\">IPv6
-      Registry</a></li>\n\t\t\t\t\t\t\t<li><a href=\"/numbers/as-numbers\">ASN Registry</a></li>\n\t\t\t\t\t\t\t-->\n\t\t\t\t\t\t\t<li><a
-      href=\"/abuse\">Abuse Information</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t\t<tr>\n\t\t\t\t\t<td
+      class=\"subsection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<li><a href=\"/abuse\">Abuse
+      Information</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t\t<tr>\n\t\t\t\t\t<td
       class=\"section\"><a href=\"/protocols\">Protocols</a></td>\n\t\t\t\t\t<td class=\"subsection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<li><a
       href=\"/protocols\">Protocol Registries</a></li>\n\t\t\t\t\t\t\t<li><a href=\"/time-zones\">Time
       Zone Database</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t\t<tr>\n\t\t\t\t\t<td
-      class=\"section\"><a href=\"/about\">About&nbsp;IANA</a></td>\n\t\t\t\t\t<td
-      class=\"subsection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<li><a href=\"/about/presentations\">Presentations</a></li>\n\t\t\t\t\t\t\t<li><a
-      href=\"/reports\">Reports</a></li>\n                            <li><a href=\"/performance\">Performance</a></li>\n\t\t\t\t\t\t\t<li><a
+      class=\"section\"><a href=\"/about\">About&nbsp;Us</a></td>\n\t\t\t\t\t<td class=\"subsection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<li><a
+      href=\"/about/presentations\">Presentations</a></li>\n\t\t\t\t\t\t\t<li><a href=\"/reports\">Reports</a></li>\n
+      \                           <li><a href=\"/performance\">Performance</a></li>\n\t\t\t\t\t\t\t<li><a
       href=\"/reviews\">Reviews</a></li>\n                            <li><a href=\"/about/excellence\">Excellence</a></li>\n\t\t\t\t\t\t\t<li><a
-      href=\"/contact\">Contact IANA</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t</table>\n\n\t\t\t<div
-      id=\"custodian\">\n\t\t\t\t<img src=\"/_img/2013.1/icann-logo.svg\" width=\"57\"
-      height=\"48\" id=\"icann-logo\">\n\t\t\t\t<p>IANA is responsible for coordinating
-      the Internet’s globally unique identifiers, and is operated by the <a href=\"http://www.icann.org/\">Internet
-      Corporation for Assigned Names and Numbers</a> (ICANN).</p>\n\t\t\t</div>\n\n\t\t</div>\n\t</footer>\n\t\n\t\n<script>\n$(document).ready(function()
+      href=\"/contact\">Contact Us</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t</table>\n\n
+      \           <div id=\"custodian\">\n                <p>The IANA functions coordinate
+      the Internet’s globally unique identifiers, and\n                    are provided
+      by <a href=\"http://pti.icann.org\">Public Technical Identifiers</a>, an affiliate
+      of\n                    <a href=\"http://www.icann.org/\">ICANN</a>.</p>\n            </div>\n\n
+      \           <div id=\"legalnotice\">\n            <ul>\n                <li><a
+      href=\"https://www.icann.org/privacy/policy\">Privacy Policy</a></li>\n                <li><a
+      href=\"https://www.icann.org/privacy/tos\">Terms of Service</a></li>\n                </ul>\n
+      \               </p>\n            </div>\n\n\t\t</div>\n\t</footer>\n\t\n\t\n<script>\n$(document).ready(function()
       {\n\t$(\"#nav_dom_special\").addClass(\"selected\")\n\t$(\"#nav_dom_int_sub\").hide()\n\t$(\"#nav_dom_idn_sub\").hide()\n\t$(\"#nav_dom_dnssec_sub\").hide()\n\t$(\"#nav_dom_tools_sub\").hide()\n\t$(\"#nav_dom_root_sub\").hide()\n});\n</script>\n\n\t\n</body>\n\n</html>\n"
     headers:
-      Accept-Ranges:
-      - bytes
+      Age:
+      - "2535"
       Cache-Control:
-      - public, max-age=3600
-      Connection:
-      - keep-alive
+      - public, max-age=21603
+      Content-Security-Policy:
+      - upgrade-insecure-requests;                         default-src 'self' https://*.iana.org;                         script-src
+        'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://cse.google.com
+        https://clients1.google.com;                         style-src 'self' 'unsafe-inline'
+        https://www.google.com;                         child-src 'self' https://www.youtube.com
+        https://clients1.google.com https://cse.google.com;                         img-src
+        'self' https://data.iana.org https://www.iana.org https://www.google.com                                        https://www.googleapis.com
+        https://clients1.google.com                                        https://*.gstatic.com;
       Content-Type:
       - text/html; charset=UTF-8
       Date:
-      - Sat, 13 Feb 2016 11:28:05 GMT
+      - Fri, 11 Jun 2021 08:36:52 GMT
+      Expires:
+      - Fri, 11 Jun 2021 10:17:26 GMT
       Last-Modified:
-      - Tue, 21 Jul 2015 00:49:48 GMT
+      - Thu, 21 May 2020 22:41:39 GMT
+      Referrer-Policy:
+      - origin-when-cross-origin
       Server:
       - Apache
+      Strict-Transport-Security:
+      - max-age=48211200; preload
       Vary:
       - Accept-Encoding
-      X-Cache-Hits:
-      - "0"
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
     status: 200 OK
     code: 200
+    duration: 1.110414325s
