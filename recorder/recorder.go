@@ -67,6 +67,13 @@ type Recorder struct {
 
 	// Pass through requests.
 	Passthroughs []Passthrough
+
+	// SkipRequestLatency if set to true will not simulate the
+	// latency of the original request. When set to false
+	// (default) it will block for the period of time taken by the
+	// original request to simulate the latency between our
+	// recorder and the remote endpoints.
+	SkipRequestLatency bool
 }
 
 // Passthrough function allows ignoring certain requests.
@@ -234,8 +241,10 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, req.Context().Err()
 	default:
 		buf := bytes.NewBuffer([]byte(interaction.Response.Body))
-		// apply the duration defined in the interaction
-		<-time.After(interaction.Response.Duration)
+		// Apply the duration defined in the interaction
+		if !r.SkipRequestLatency {
+			<-time.After(interaction.Response.Duration)
+		}
 
 		contentLength := int64(buf.Len())
 		// For HTTP HEAD requests, the ContentLength should be set to the size
