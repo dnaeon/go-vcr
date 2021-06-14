@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dnaeon/go-vcr/recorder"
 )
@@ -48,15 +47,9 @@ func TestSimple(t *testing.T) {
 	}
 
 	url := "http://golang.org/"
-	// measure the duration, expecting ~2s
-	start := time.Now()
 	resp, err := client.Get(url)
 	if err != nil {
 		t.Fatalf("Failed to get url %s: %s", url, err)
-	}
-	end := time.Now()
-	if end.UnixNano()-start.UnixNano() < 2e9 { // should be 2s, so will be definitely wrong if under
-		t.Fatalf("unexpected duration: %vns", (end.UnixNano() - start.UnixNano()))
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)

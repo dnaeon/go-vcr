@@ -67,6 +67,13 @@ type Recorder struct {
 
 	// Pass through requests.
 	Passthroughs []Passthrough
+
+	// SkipRequestLatency if set to true will not simulate the
+	// latency of the original request. When set to false
+	// (default) it will block for the period of time taken by the
+	// original request to simulate the latency between our
+	// recorder and the remote endpoints.
+	SkipRequestLatency bool
 }
 
 // Passthrough function allows ignoring certain requests.
@@ -117,10 +124,13 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 
 	// Perform client request to it's original
 	// destination and record interactions
+	var start time.Time
+	start = time.Now()
 	resp, err := realTransport.RoundTrip(r)
 	if err != nil {
 		return nil, err
 	}
+	requestDuration := time.Since(start)
 	defer resp.Body.Close()
 
 	respBody, err := ioutil.ReadAll(resp.Body)
@@ -138,10 +148,11 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 			Method:  r.Method,
 		},
 		Response: cassette.Response{
-			Body:    string(respBody),
-			Headers: resp.Header,
-			Status:  resp.Status,
-			Code:    resp.StatusCode,
+			Body:     string(respBody),
+			Headers:  resp.Header,
+			Status:   resp.Status,
+			Code:     resp.StatusCode,
+			Duration: requestDuration,
 		},
 	}
 	for _, filter := range c.Filters {
@@ -230,14 +241,9 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, req.Context().Err()
 	default:
 		buf := bytes.NewBuffer([]byte(interaction.Response.Body))
-		// apply the duration defined in the interaction
-		if interaction.Response.Duration != "" {
-			d, err := time.ParseDuration(interaction.Duration)
-			if err != nil {
-				return nil, err
-			}
-			// block for the configured 'duration' to simulate the network latency and server processing time.
-			<-time.After(d)
+		// Apply the duration defined in the interaction
+		if !r.SkipRequestLatency {
+			<-time.After(interaction.Response.Duration)
 		}
 
 		contentLength := int64(buf.Len())

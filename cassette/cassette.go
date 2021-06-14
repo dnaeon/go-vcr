@@ -33,6 +33,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
@@ -83,7 +84,7 @@ type Response struct {
 	Code int `yaml:"code"`
 
 	// Response duration (something like "100ms" or "10s")
-	Duration string `yaml:"duration"`
+	Duration time.Duration `yaml:"duration"`
 
 	replayed bool
 }
