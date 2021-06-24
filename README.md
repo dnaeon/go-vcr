@@ -16,7 +16,7 @@ and accurate testing of your code.
 Install `go-vcr` by executing the command below:
 
 ```bash
-$ go get github.com/dnaeon/go-vcr/recorder
+$ go get github.com/dnaeon/go-vcr/v2/recorder
 ```
 
 ## Usage
@@ -34,7 +34,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/dnaeon/go-vcr/recorder"
+	"github.com/dnaeon/go-vcr/v2/recorder"
 
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
