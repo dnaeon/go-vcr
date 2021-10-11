@@ -174,33 +174,41 @@ func New(cassetteName string) (*Recorder, error) {
 
 // NewAsMode creates a new recorder in the specified mode
 func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) (*Recorder, error) {
-	var c *cassette.Cassette
+	var r = &Recorder{
+		mode:          mode,
+		realTransport: realTransport,
+	}
+
+	if r.realTransport == nil {
+		r.realTransport = http.DefaultTransport
+	}
+
+	// Disabled mode has no cassette
+	if mode == ModeDisabled {
+		return r, nil
+	}
+
 	cassetteFile := fmt.Sprintf("%s.yaml", cassetteName)
 
-	if mode != ModeDisabled {
-		// Depending on whether the cassette file exists or not we
-		// either create a new empty cassette or load from file
-		if _, err := os.Stat(cassetteFile); os.IsNotExist(err) || mode == ModeRecording {
-			// Create new cassette and enter in recording mode
-			c = cassette.New(cassetteName)
-			mode = ModeRecording
-		} else {
-			// Load cassette from file and enter replay mode or replay/record mode
-			c, err = cassette.Load(cassetteName)
-			if err != nil {
-				return nil, err
-			}
+	// Check if the cassette exists
+	if _, err := os.Stat(cassetteFile); os.IsNotExist(err) {
+		// Replaying mode should fail if no cassette exists
+		if mode == ModeReplaying {
+			return nil, cassette.ErrCassetteNotFound
 		}
+
+		// Otherwise we are in a recording mode, create new cassette and enter in recording mode
+		r.cassette = cassette.New(cassetteName)
+		r.mode = ModeRecording
+
+		return r, nil
 	}
 
-	if realTransport == nil {
-		realTransport = http.DefaultTransport
-	}
-
-	r := &Recorder{
-		mode:          mode,
-		cassette:      c,
-		realTransport: realTransport,
+	// Load cassette from file and enter replay mode or replay/record mode
+	var err error
+	r.cassette, err = cassette.Load(cassetteName)
+	if err != nil {
+		return nil, err
 	}
 
 	return r, nil
