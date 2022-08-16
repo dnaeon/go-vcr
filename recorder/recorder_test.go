@@ -41,8 +41,8 @@ import (
 
 	"bytes"
 
-	"github.com/dnaeon/go-vcr/v2/cassette"
-	"github.com/dnaeon/go-vcr/v2/recorder"
+	"github.com/dnaeon/go-vcr/cassette"
+	"github.com/dnaeon/go-vcr/recorder"
 )
 
 type recordTest struct {

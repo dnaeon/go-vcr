@@ -37,7 +37,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dnaeon/go-vcr/v2/cassette"
+	"github.com/dnaeon/go-vcr/cassette"
 )
 
 // Mode represents recording/playback mode

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2015 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -30,12 +30,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dnaeon/go-vcr/v2/recorder"
+	"github.com/dnaeon/go-vcr/recorder"
 )
 
-func TestHTTPS(t *testing.T) {
+func TestSimple(t *testing.T) {
 	// Start our recorder
-	r, err := recorder.New("fixtures/iana-reserved-domains")
+	r, err := recorder.New("fixtures/golang-org")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestHTTPS(t *testing.T) {
 		Transport: r, // Inject as transport!
 	}
 
-	url := "https://www.iana.org/domains/reserved"
+	url := "http://golang.org/"
 	resp, err := client.Get(url)
 	if err != nil {
 		t.Fatalf("Failed to get url %s: %s", url, err)
@@ -57,10 +57,10 @@ func TestHTTPS(t *testing.T) {
 		t.Fatalf("Failed to read response body: %s", err)
 	}
 
-	wantHeading := "<h1>IANA-managed Reserved Domains</h1>"
+	wantTitle := "<title>The Go Programming Language</title>"
 	bodyContent := string(body)
 
-	if !strings.Contains(bodyContent, wantHeading) {
-		t.Errorf("Heading %s not found in response", wantHeading)
+	if !strings.Contains(bodyContent, wantTitle) {
+		t.Errorf("Title %s not found in response", wantTitle)
 	}
 }
