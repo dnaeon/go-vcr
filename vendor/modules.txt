@@ -2,10 +2,6 @@
 ## explicit
 github.com/modocache/gover
 github.com/modocache/gover/gover
-# github.com/onsi/ginkgo v1.16.4
-## explicit
-# github.com/onsi/gomega v1.13.0
-## explicit
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
