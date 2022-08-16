@@ -1,7 +1,0 @@
-# github.com/modocache/gover v0.0.0-20171022184752-b58185e213c5
-## explicit
-github.com/modocache/gover
-github.com/modocache/gover/gover
-# gopkg.in/yaml.v3 v3.0.1
-## explicit
-gopkg.in/yaml.v3
