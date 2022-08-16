@@ -45,12 +45,28 @@ type Mode int
 
 // Recorder states
 const (
+	// ModeRecording specifies that VCR will run in recording mode
+	// and create new cassettes for each HTTP interaction.
 	ModeRecording Mode = iota
+
+	// ModeReplaying specifies that VCR will *only* replay HTTP
+	// interactions from previously recorded cassettes. If a
+	// cassette is missing while running in this mode, the
+	// cassette.ErrCassetteNotFound error will be returned.
 	ModeReplaying
+
+	// ModeDisabled specifies that VCR will not record new
+	// interactions and the real HTTP transport will be used
+	// instead. This mode works as a pass-through.
 	ModeDisabled
-	// Replay record from cassette or record a new one when a request is not
-	// present in cassette instead of throwing ErrInteractionNotFound
+
+	// ModeReplayingOrRecording replays previously recorded
+	// interactions from the cassettes, or updates the cassettes,
+	// if an HTTP interaction is not found.
 	ModeReplayingOrRecording
+
+	// ModePassthrough is a synonym for ModeDisabled
+	ModePassthrough = ModeDisabled
 )
 
 // Recorder represents a type used to record and replay
