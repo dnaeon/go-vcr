@@ -1,4 +1,4 @@
-module github.com/dnaeon/go-vcr
+module "gopkg.in/dnaeon/go-vcr.v2"
 
 go 1.19
 

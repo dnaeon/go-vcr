@@ -16,7 +16,7 @@ and accurate testing of your code.
 Install `go-vcr` by executing the command below:
 
 ```bash
-$ go get -v github.com/dnaeon/go-vcr/recorder@v2
+$ go get -v gopkg.in/dnaeon/go-vcr.v2
 ```
 
 ## Usage
