@@ -46,7 +46,11 @@ const (
 var (
 	// ErrInteractionNotFound indicates that a requested
 	// interaction was not found in the cassette file
-	ErrInteractionNotFound = errors.New("Requested interaction not found")
+	ErrInteractionNotFound = errors.New("requested interaction not found")
+
+	// ErrCassetteNotFound indicates that a requested
+	// casette doesn't exist (only in Replaying mode)
+	ErrCassetteNotFound = errors.New("requested cassette not found")
 )
 
 // Request represents a client request as recorded in the

@@ -106,7 +106,7 @@ func TestRecord(t *testing.T) {
 	}
 	defer r.Stop()
 
-	if m := r.Mode(); m != recorder.ModeReplaying {
+	if m := r.Mode(); m != recorder.ModeReplayingOrRecording {
 		t.Fatalf("Expected replaying mode, got %v", m)
 	}
 
@@ -127,10 +127,19 @@ func TestRecord(t *testing.T) {
 	}
 }
 
+func TestReplayingModeFailsWithEmptyCassette(t *testing.T) {
+	_, cassPath, _ := setupTests(t, "replaying_test")
+
+	_, err := recorder.NewAsMode(cassPath, recorder.ModeReplaying, nil)
+	if err != cassette.ErrCassetteNotFound {
+		t.Fatalf("expected cassette.ErrCassetteNotFound, got %v", err)
+	}
+}
+
 func TestModeContextTimeout(t *testing.T) {
 	// Record initial requests
 	runID, cassPath, tests := setupTests(t, "record_playback_timeout")
-	_, serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplaying)
+	_, serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplayingOrRecording)
 
 	// Re-run without the actual server
 	r, err := recorder.New(cassPath)
@@ -152,7 +161,7 @@ func TestModeContextTimeout(t *testing.T) {
 func TestModePlaybackMissing(t *testing.T) {
 	// Record initial requests
 	runID, cassPath, tests := setupTests(t, "record_playback_missing_test")
-	httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplaying)
+	httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplayingOrRecording)
 
 	// setup same path but a new runID so requests won't match
 	runID = time.Now().Format(time.RFC3339Nano)

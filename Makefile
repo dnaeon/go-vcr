@@ -7,4 +7,4 @@ test:
 test_cover:
 	./test_cover.sh
 
-.PHONY: get test
+.PHONY: get test test_cover
