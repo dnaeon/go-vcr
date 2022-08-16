@@ -1,10 +1,10 @@
 get:
-	go get -v -t -d ./...
+	cd v2 && go get -v -t -d ./...
 
 test:
-	go test -v -race ./...
+	cd v2 && go test -v -race ./...
 
 test_cover:
-	./test_cover.sh
+	cd v2 && ../test_cover.sh
 
-.PHONY: get test
+.PHONY: get test test_cover
