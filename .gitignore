@@ -28,5 +28,8 @@ _testmain.go
 
 # Ignore test code coverage
 coverage.txt
+v2/vcr.coverprofile
+v2/cassette.coverprofile
+v2/recorder.coverprofile
 
 .idea/
