@@ -30,7 +30,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dnaeon/go-vcr/recorder"
+	"gopkg.in/dnaeon/go-vcr.v2/recorder"
 )
 
 func TestSimple(t *testing.T) {
