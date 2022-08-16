@@ -106,7 +106,7 @@ func TestRecord(t *testing.T) {
 	}
 	defer r.Stop()
 
-	if m := r.Mode(); m != recorder.ModeReplaying {
+	if m := r.Mode(); m != recorder.ModeReplayingOrRecording {
 		t.Fatalf("Expected replaying mode, got %v", m)
 	}
 

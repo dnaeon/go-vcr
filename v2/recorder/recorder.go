@@ -185,7 +185,7 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 // New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
 	// Default mode is "replay" if file exists
-	return NewAsMode(cassetteName, ModeReplaying, nil)
+	return NewAsMode(cassetteName, ModeReplayingOrRecording, nil)
 }
 
 // NewAsMode creates a new recorder in the specified mode
