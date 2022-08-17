@@ -184,7 +184,6 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 
 // New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
-	// Default mode is "replay" if file exists
 	return NewAsMode(cassetteName, ModeReplayingOrRecording, nil)
 }
 
@@ -200,7 +199,7 @@ func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) 
 	}
 
 	// Disabled mode has no cassette
-	if mode == ModeDisabled {
+	if mode == ModeDisabled || mode == ModePassthrough {
 		return r, nil
 	}
 
@@ -215,7 +214,6 @@ func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) 
 
 		// Otherwise we are in a recording mode, create new cassette and enter in recording mode
 		r.cassette = cassette.New(cassetteName)
-		r.mode = ModeRecording
 
 		return r, nil
 	}
