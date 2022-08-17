@@ -25,9 +25,11 @@
 package cassette
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -105,10 +107,21 @@ type Interaction struct {
 // own criteria.
 type Matcher func(*http.Request, Request) bool
 
-// DefaultMatcher is used when a custom matcher is not defined
-// and compares only the method and URL.
+// DefaultMatcher is used when a custom matcher is not defined and
+// compares only the method, URL and body of the HTTP request.
 func DefaultMatcher(r *http.Request, i Request) bool {
-	return r.Method == i.Method && r.URL.String() == i.URL
+	var reqBody []byte
+	var err error
+	if r.Body != nil && r.Body != http.NoBody {
+		reqBody, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Fatal("failed to read request body")
+		}
+		r.Body.Close()
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+	}
+
+	return r.Method == i.Method && r.URL.String() == i.URL && string(reqBody) == i.Body
 }
 
 // Filter function allows modification of an interaction before saving.
