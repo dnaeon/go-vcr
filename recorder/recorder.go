@@ -55,7 +55,7 @@ const (
 	// cassette.ErrCassetteNotFound error will be returned.
 	ModeReplaying
 
-	// ModeDisabled specifies that VCR will not record new
+	// ModeDisabled specifies that VCR will not record any
 	// interactions and the real HTTP transport will be used
 	// instead. This mode works as a pass-through.
 	ModeDisabled
@@ -102,15 +102,24 @@ func (r *Recorder) SetTransport(t http.RoundTripper) {
 
 // Proxies client requests to their original destination
 func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransport http.RoundTripper) (*cassette.Interaction, error) {
-	// Return interaction from cassette if in replay mode or replay/record mode
+
+	// In Replaying or ReplayingOrRecording attempt to get the
+	// interaction from the cassette first. If we have a recorded
+	// interaction, return it.
 	if mode == ModeReplaying || mode == ModeReplayingOrRecording {
 		if err := r.Context().Err(); err != nil {
 			return nil, err
 		}
 
-		if interaction, err := c.GetInteraction(r); mode == ModeReplaying {
+		interaction, err := c.GetInteraction(r)
+		switch {
+		case mode == ModeReplaying:
+			// In ModeReplaying return what we've got from
+			// the cassette
 			return interaction, err
-		} else if mode == ModeReplayingOrRecording && err == nil {
+		case mode == ModeReplayingOrRecording && err == nil:
+			// ReplayingOrRecording, and we've got a
+			// recorded interaction, so return it
 			return interaction, err
 		}
 	}
@@ -295,7 +304,8 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 }
 
-// CancelRequest implements the github.com/coreos/etcd/client.CancelableTransport interface
+// CancelRequest implements the
+// github.com/coreos/etcd/client.CancelableTransport interface
 func (r *Recorder) CancelRequest(req *http.Request) {
 	type cancelableTransport interface {
 		CancelRequest(req *http.Request)
@@ -305,22 +315,24 @@ func (r *Recorder) CancelRequest(req *http.Request) {
 	}
 }
 
-// SetMatcher sets a function to match requests against recorded HTTP interactions.
+// SetMatcher sets a function to match requests against recorded HTTP
+// interactions.
 func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
 	if r.cassette != nil {
 		r.cassette.Matcher = matcher
 	}
 }
 
-// SetReplayableInteractions defines whether to allow interactions to be replayed or not.
+// SetReplayableInteractions defines whether to allow interactions to
+// be replayed or not.
 func (r *Recorder) SetReplayableInteractions(replayable bool) {
 	if r.cassette != nil {
 		r.cassette.ReplayableInteractions = replayable
 	}
 }
 
-// AddPassthrough appends a hook to determine if a request should be ignored by the
-// recorder.
+// AddPassthrough appends a hook to determine if a request should be
+// ignored by the recorder.
 func (r *Recorder) AddPassthrough(pass Passthrough) {
 	r.Passthroughs = append(r.Passthroughs, pass)
 }
