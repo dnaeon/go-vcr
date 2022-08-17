@@ -138,12 +138,15 @@ type Cassette struct {
 	// Cassette format version
 	Version int `yaml:"version"`
 
-	// Mutex to lock accessing Interactions. omitempty is set
-	// to prevent the mutex appearing in the recorded YAML.
+	// Mutex to lock accessing Interactions. omitempty is set to
+	// prevent the mutex appearing in the recorded YAML.
 	Mu sync.RWMutex `yaml:"mu,omitempty"`
+
 	// Interactions between client and server
 	Interactions []*Interaction `yaml:"interactions"`
-	// ReplayableInteractions defines whether to allow interactions to be replayed or not
+
+	// ReplayableInteractions defines whether to allow
+	// interactions to be replayed or not
 	ReplayableInteractions bool `yaml:"-"`
 
 	// Matches actual request with interaction requests.
@@ -152,7 +155,8 @@ type Cassette struct {
 	// Filters interactions before when they are captured.
 	Filters []Filter `yaml:"-"`
 
-	// SaveFilters are applied to interactions just before they are saved.
+	// SaveFilters are applied to interactions just before they
+	// are saved.
 	SaveFilters []Filter `yaml:"-"`
 }
 
