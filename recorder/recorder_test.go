@@ -393,7 +393,7 @@ func (test recordTest) performReq(t *testing.T, ctx context.Context, url string,
 func setupTests(t *testing.T, name string) (runID, cassPath string, tests []recordTest) {
 	runID = time.Now().Format(time.RFC3339Nano)
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := ioutil.TempDir(os.TempDir(), "go-vcr-")
 	if err != nil {
 		t.Fatal(err)
 	}
