@@ -110,17 +110,6 @@ func TestRecord(t *testing.T) {
 		t.Fatalf("Expected replaying mode, got %v", m)
 	}
 
-	// Use a custom matcher that includes matching on request body
-	r.SetMatcher(func(r *http.Request, i cassette.Request) bool {
-		var b bytes.Buffer
-		if _, err := b.ReadFrom(r.Body); err != nil {
-			t.Fatalf("unable to read request body: %s", err)
-			return false
-		}
-		r.Body = ioutil.NopCloser(&b)
-		return cassette.DefaultMatcher(r, i) && (b.String() == "" || b.String() == i.Body)
-	})
-
 	t.Log("replaying")
 	for _, test := range tests {
 		test.perform(t, serverURL, r)
