@@ -191,8 +191,8 @@ func Load(name string) (*Cassette, error) {
 // AddInteraction appends a new interaction to the cassette
 func (c *Cassette) AddInteraction(i *Interaction) {
 	c.Mu.Lock()
+	defer c.Mu.Unlock()
 	c.Interactions = append(c.Interactions, i)
-	c.Mu.Unlock()
 }
 
 // GetInteraction retrieves a recorded request/response interaction
