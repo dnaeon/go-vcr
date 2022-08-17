@@ -26,6 +26,7 @@
 package recorder_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -39,138 +40,347 @@ import (
 	"testing"
 	"time"
 
-	"bytes"
-
 	"gopkg.in/dnaeon/go-vcr.v2/cassette"
 	"gopkg.in/dnaeon/go-vcr.v2/recorder"
 )
 
-type recordTest struct {
-	method         string
-	body           string
-	want           string
-	wantContentLen int
+type testCase struct {
+	method            string
+	body              string
+	wantBody          string
+	wantStatus        int
+	wantContentLength int
 }
 
-func httpTests(runID string) []recordTest {
-	return []recordTest{
+func (tc testCase) run(client *http.Client, ctx context.Context, url string) error {
+	req, err := http.NewRequest(tc.method, url, strings.NewReader(tc.body))
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if string(respBody) != tc.wantBody {
+		return fmt.Errorf("got body: %q, want body: %q", string(respBody), tc.wantBody)
+	}
+
+	if resp.StatusCode != tc.wantStatus {
+		return fmt.Errorf("want status: %q, got status: %q", resp.StatusCode, tc.wantStatus)
+	}
+
+	if resp.ContentLength != int64(tc.wantContentLength) {
+		return fmt.Errorf("want ContentLength %d, got %d", tc.wantContentLength, resp.ContentLength)
+	}
+
+	return nil
+}
+
+// newTimestampId returns a new ID based on the current timestamp
+func newTimestampId() string {
+	return time.Now().Format(time.RFC3339Nano)
+}
+
+// newEchoHttpServer creates a new HTTP server for testing purposes
+func newEchoHttpServer() *httptest.Server {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s go-vcr", r.Method)
+		if r.Body != nil {
+			defer r.Body.Close()
+			fmt.Fprintln(w)
+			io.Copy(w, r.Body)
+		}
+	})
+	server := httptest.NewServer(handler)
+
+	return server
+}
+
+// newCassettePath creates a new path to be used for test cassettes,
+// which reside in a temporary location.
+func newCassettePath(name string) (string, error) {
+	dir, err := ioutil.TempDir(os.TempDir(), "go-vcr-")
+	if err != nil {
+		return "", err
+	}
+	cassPath := path.Join(dir, name)
+
+	return cassPath, nil
+}
+
+// newHttpClient creates a new test HTTP client
+func newHttpClient(r *recorder.Recorder) *http.Client {
+	client := &http.Client{
+		Transport: r, // Our recorder's transport
+	}
+
+	return client
+}
+
+func TestRecordingMode(t *testing.T) {
+	// Set things up
+	tests := []testCase{
 		{
-			method:         "GET",
-			want:           "GET " + runID + "\n",
-			wantContentLen: 4 + len(runID) + 1,
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
 		},
 		{
-			method:         "HEAD",
-			wantContentLen: 5 + len(runID) + 1,
+			method:            http.MethodHead,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 12,
 		},
 		{
-			method:         "POST",
-			body:           "post body",
-			want:           "POST " + runID + "\npost body",
-			wantContentLen: 5 + len(runID) + 10,
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
 		},
 		{
-			method:         "POST",
-			body:           "alt body",
-			want:           "POST " + runID + "\nalt body",
-			wantContentLen: 5 + len(runID) + 9,
+			method:            http.MethodPost,
+			body:              "bar",
+			wantBody:          "POST go-vcr\nbar",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
 		},
 	}
-}
 
-func TestRecord(t *testing.T) {
-	runID, cassPath, tests := setupTests(t, "record_test")
+	server := newEchoHttpServer()
+	serverUrl := server.URL
 
-	r, serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeRecording)
+	cassPath, err := newCassettePath("test_record")
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	// Create recorder
+	rec, err := recorder.NewAsMode(cassPath, recorder.ModeRecording, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecording {
+		t.Fatalf("recorder should be in ModeRecording, got %q", rec.Mode())
+	}
+
+	// Run tests
+	ctx := context.Background()
+	client := newHttpClient(rec)
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Stop server and recorder, then re-run the tests without server
+	server.Close()
+	rec.Stop()
+
+	// Verify we've got correct interactions recorded in the cassette
 	c, err := cassette.Load(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if m := r.Mode(); m != recorder.ModeRecording {
-		t.Fatalf("Expected recording mode, got %v", m)
-	}
-
 	for i, test := range tests {
-		body := c.Interactions[i].Request.Body
-		if body != test.body {
-			t.Fatalf("got:\t%s\n\twant:\t%s", string(body), string(test.body))
+		recordedBody := c.Interactions[i].Request.Body
+		if test.body != recordedBody {
+			t.Fatalf("got recorded body: %q, want recorded body: %q", test.body, recordedBody)
+		}
+
+		recordedMethod := c.Interactions[i].Request.Method
+		if test.method != recordedMethod {
+			t.Fatalf("got recorded method: %q, want recorded method: %q", test.method, recordedMethod)
+		}
+
+		recordedStatus := c.Interactions[i].Response.Code
+		if test.wantStatus != recordedStatus {
+			t.Fatalf("got recorded status: %q, want recorded status: %q", test.wantStatus, recordedStatus)
+
 		}
 	}
 
 	// Re-run without the actual server
-	r, err = recorder.New(cassPath)
+	rec, err = recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Stop()
+	defer rec.Stop()
+	client = newHttpClient(rec)
 
-	if m := r.Mode(); m != recorder.ModeReplayingOrRecording {
-		t.Fatalf("Expected replaying mode, got %v", m)
+	if rec.Mode() != recorder.ModeReplayingOrRecording {
+		t.Fatalf("recorder should be in ModeReplayingOrRecording, got %q", rec.Mode())
 	}
 
-	t.Log("replaying")
 	for _, test := range tests {
-		test.perform(t, serverURL, r)
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
 func TestReplayingModeFailsWithEmptyCassette(t *testing.T) {
-	_, cassPath, _ := setupTests(t, "replaying_test")
+	cassPath, err := newCassettePath("replaying_mode_fails_with_empty_cassette")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	_, err := recorder.NewAsMode(cassPath, recorder.ModeReplaying, nil)
+	_, err = recorder.NewAsMode(cassPath, recorder.ModeReplaying, nil)
 	if err != cassette.ErrCassetteNotFound {
 		t.Fatalf("expected cassette.ErrCassetteNotFound, got %v", err)
 	}
 }
 
-func TestModeContextTimeout(t *testing.T) {
-	// Record initial requests
-	runID, cassPath, tests := setupTests(t, "record_playback_timeout")
-	_, serverURL := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplayingOrRecording)
-
-	// Re-run without the actual server
-	r, err := recorder.New(cassPath)
+func TestWithContextTimeout(t *testing.T) {
+	cassPath, err := newCassettePath("record_playback_timeout")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Stop()
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	rec, err := recorder.NewAsMode(cassPath, recorder.ModeReplayingOrRecording, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []testCase{
+		{
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
+		},
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+		},
+	}
+
+	// Run tests
+	ctx := context.Background()
+	client := newHttpClient(rec)
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Re-run without the actual server
+	server.Close()
+	rec.Stop()
+
+	rec, err = recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
+	client = newHttpClient(rec)
 
 	for _, test := range tests {
 		ctx, cancelFn := context.WithCancel(context.Background())
 		cancelFn()
-		_, err := test.performReq(t, ctx, serverURL, r)
-		if err == nil || err == cassette.ErrInteractionNotFound {
+		err = test.run(client, ctx, serverUrl)
+		if err == nil {
 			t.Fatalf("Expected cancellation error, got %v", err)
 		}
 	}
 }
 
-func TestModePlaybackMissing(t *testing.T) {
-	// Record initial requests
-	runID, cassPath, tests := setupTests(t, "record_playback_missing_test")
-	httpRecorderTest(t, runID, tests, cassPath, recorder.ModeReplayingOrRecording)
+func TestModePlaybackMissingEpisodes(t *testing.T) {
+	tests := []testCase{
+		{
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
+		},
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+		},
+	}
 
-	// setup same path but a new runID so requests won't match
-	runID = time.Now().Format(time.RFC3339Nano)
-	recorder, server := httpRecorderTestSetup(t, runID, cassPath, recorder.ModeReplaying)
-	serverURL := server.URL
+	server := newEchoHttpServer()
+	serverUrl := server.URL
 
-	defer server.Close()
-	defer recorder.Stop()
+	cassPath, err := newCassettePath("record_playback_missing_episodes")
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	// Create recorder
+	rec, err := recorder.NewAsMode(cassPath, recorder.ModeReplayingOrRecording, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeReplayingOrRecording {
+		t.Fatalf("recorder should be in ModeReplayingOrRecording, got %q", rec.Mode())
+	}
+
+	// Run tests
+	ctx := context.Background()
+	client := newHttpClient(rec)
 	for _, test := range tests {
-		resp, err := test.performReq(t, context.Background(), serverURL, recorder)
-		if resp != nil {
-			t.Fatalf("Expected response to be nil but was %v", resp)
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
 		}
+	}
 
+	// Re-run again with new HTTP interactions
+	server.Close()
+	rec.Stop()
+
+	rec, err = recorder.NewAsMode(cassPath, recorder.ModeReplaying, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
+
+	if rec.Mode() != recorder.ModeReplaying {
+		t.Fatalf("recorder should be in ModeReplaying, got %q", rec.Mode())
+	}
+
+	newTests := []testCase{
+		{
+			method:            http.MethodHead,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 12,
+		},
+		{
+			method:            http.MethodPost,
+			body:              "bar",
+			wantBody:          "POST go-vcr\nbar",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+		},
+	}
+
+	client = newHttpClient(rec)
+	for _, test := range newTests {
+		err := test.run(client, ctx, serverUrl)
 		urlErr, ok := err.(*url.Error)
 		if !ok {
 			t.Fatalf("Expected err but was %T %s", err, err)
 		}
-
 		if urlErr.Err != cassette.ErrInteractionNotFound {
 			t.Fatalf("Expected cassette.ErrInteractionNotFound but was %T %s", err, err)
 		}
@@ -178,29 +388,99 @@ func TestModePlaybackMissing(t *testing.T) {
 }
 
 func TestModeDisabled(t *testing.T) {
-	runID, cassPath, tests := setupTests(t, "record_disabled_test")
-
-	r, _ := httpRecorderTest(t, runID, tests, cassPath, recorder.ModeDisabled)
-
-	if m := r.Mode(); m != recorder.ModeDisabled {
-		t.Fatalf("Expected disabled mode, got %v", m)
+	tests := []testCase{
+		{
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
+		},
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+		},
 	}
 
-	_, err := cassette.Load(cassPath)
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("recorder_disabled_mode")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec, err := recorder.NewAsMode(cassPath, recorder.ModeDisabled, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
+	defer server.Close()
+
+	if m := rec.Mode(); m != recorder.ModeDisabled {
+		t.Fatalf("Expected recorder in ModeDisabled, got %q", m)
+	}
+
+	// Run tests
+	ctx := context.Background()
+	client := newHttpClient(rec)
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// Expect the file to not exist if record is disabled
-	if !os.IsNotExist(err) {
+	if _, err := cassette.Load(cassPath); !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 }
 
-func TestPassthrough(t *testing.T) {
-	runID, cassPath, tests := setupTests(t, "test_passthrough")
-	recorder, server := httpRecorderTestSetup(t, runID, cassPath, recorder.ModeRecording)
-	serverURL := server.URL
+func TestPassthroughMode(t *testing.T) {
+	tests := []testCase{
+		{
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
+		},
+		{
+			method:            http.MethodHead,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 12,
+		},
+		{
+			method:            http.MethodPost,
+			body:              "passthrough request",
+			wantBody:          "POST go-vcr\npassthrough request",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 31,
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("test_passthrough_mode")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	rec, err := recorder.NewAsMode(cassPath, recorder.ModeRecording, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecording {
+		t.Fatalf("recorder should be in ModeRecording, got %q", rec.Mode())
+	}
 
 	// Add a passthrough configuration which does not record any requests with
 	// a specific body.
-	recorder.AddPassthrough(func(r *http.Request) bool {
+	rec.AddPassthrough(func(r *http.Request) bool {
 		if r.Body == nil {
 			return false
 		}
@@ -210,62 +490,93 @@ func TestPassthrough(t *testing.T) {
 		}
 		r.Body = ioutil.NopCloser(&b)
 
-		return b.String() == "alt body"
+		return r.Method == http.MethodPost && b.String() == "passthrough request"
 	})
 
-	t.Log("make http requests")
+	// Run tests
+	ctx := context.Background()
+	client := newHttpClient(rec)
 	for _, test := range tests {
-		test.perform(t, serverURL, recorder)
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// Make sure recorder is stopped once done with it
+	// Verify that the passthrough interaction is not recorded
 	server.Close()
-	t.Log("server shut down")
+	rec.Stop()
 
-	recorder.Stop()
-	t.Log("recorder stopped")
-
-	// Load the cassette we just stored:
 	c, err := cassette.Load(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Assert that no body exists matching our pass through test
+	// Assert that no body exists matching our passthrough test
 	for _, i := range c.Interactions {
 		body := i.Request.Body
-		if body == "alt body" {
-			t.Fatalf("unexpected recording:\t%s", body)
+		if i.Request.Method == http.MethodPost && body == "passthrough request" {
+			t.Fatalf("passthrough request should not be recorded: %q", body)
 		}
 	}
 }
 
 func TestFilter(t *testing.T) {
-	dummyBody := "[REDACTED]"
+	tests := []testCase{
+		{
+			method:            http.MethodHead,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 12,
+		},
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+		},
+	}
 
-	runID, cassPath, tests := setupTests(t, "test_filter")
-	recorder, server := httpRecorderTestSetup(t, runID, cassPath, recorder.ModeRecording)
-	serverURL := server.URL
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("test_filter")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	rec, err := recorder.NewAsMode(cassPath, recorder.ModeRecording, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecording {
+		t.Fatalf("recorder should be in ModeRecording, got %q", rec.Mode())
+	}
 
 	// Add a filter which replaces each request body in the stored cassette:
-	recorder.AddFilter(func(i *cassette.Interaction) error {
-		i.Request.Body = dummyBody
+	dummyBody := "[REDACTED]"
+	rec.AddFilter(func(i *cassette.Interaction) error {
+		if i.Request.Method == http.MethodPost && i.Request.Body == "foo" {
+			i.Request.Body = dummyBody
+		}
 		return nil
 	})
 
-	t.Log("make http requests")
+	// Run tests
+	ctx := context.Background()
+	client := newHttpClient(rec)
 	for _, test := range tests {
-		test.perform(t, serverURL, recorder)
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// Make sure recorder is stopped once done with it
+	// Verify that the filter has been applied
 	server.Close()
-	t.Log("server shut down")
+	rec.Stop()
 
-	recorder.Stop()
-	t.Log("recorder stopped")
-
-	// Load the cassette we just stored:
+	// Load the cassette we just stored
 	c, err := cassette.Load(cassPath)
 	if err != nil {
 		t.Fatal(err)
@@ -274,38 +585,69 @@ func TestFilter(t *testing.T) {
 	// Assert that each body has been set to our dummy value
 	for i := range tests {
 		body := c.Interactions[i].Request.Body
-		if body != dummyBody {
-			t.Fatalf("got:\t%s\n\twant:\t%s", string(body), string(dummyBody))
+		if c.Interactions[i].Request.Method == http.MethodPost && body != dummyBody {
+			t.Fatalf("want body: %q, got body: %q", dummyBody, body)
 		}
 	}
 }
 
 func TestSaveFilter(t *testing.T) {
+	tests := []testCase{
+		{
+			method:            http.MethodHead,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 12,
+		},
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("test_save_filter")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec, err := recorder.NewAsMode(cassPath, recorder.ModeRecording, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecording {
+		t.Fatalf("recorder should be in ModeRecording, got %q", rec.Mode())
+	}
+
 	dummyBody := "[REDACTED]"
 
-	runID, cassPath, tests := setupTests(t, "test_save_filter")
-	recorder, server := httpRecorderTestSetup(t, runID, cassPath, recorder.ModeRecording)
-	serverURL := server.URL
-
-	// Add a filter which replaces each request body in the stored cassette:
-	recorder.AddSaveFilter(func(i *cassette.Interaction) error {
-		i.Response.Body = dummyBody
+	// Add a save filter which replaces each request body in the stored cassette
+	rec.AddSaveFilter(func(i *cassette.Interaction) error {
+		if i.Request.Method == http.MethodPost && i.Request.Body == "foo" {
+			i.Request.Body = dummyBody
+		}
 		return nil
 	})
 
-	t.Log("make http requests")
+	// Run tests
+	ctx := context.Background()
+	client := newHttpClient(rec)
 	for _, test := range tests {
-		test.perform(t, serverURL, recorder)
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// Make sure recorder is stopped once done with it
+	// Verify that the filter has been applied
 	server.Close()
-	t.Log("server shut down")
+	rec.Stop()
 
-	recorder.Stop()
-	t.Log("recorder stopped")
-
-	// Load the cassette we just stored:
+	// Load the cassette we just stored
 	c, err := cassette.Load(cassPath)
 	if err != nil {
 		t.Fatal(err)
@@ -313,92 +655,9 @@ func TestSaveFilter(t *testing.T) {
 
 	// Assert that each body has been set to our dummy value
 	for i := range tests {
-		body := c.Interactions[i].Response.Body
-		if body != dummyBody {
-			t.Fatalf("got:\t%s\n\twant:\t%s", string(body), string(dummyBody))
+		body := c.Interactions[i].Request.Body
+		if c.Interactions[i].Request.Method == http.MethodPost && body != dummyBody {
+			t.Fatalf("want body: %q, got body: %q", dummyBody, body)
 		}
 	}
-}
-
-func httpRecorderTestSetup(t *testing.T, runID string, cassPath string, mode recorder.Mode) (*recorder.Recorder, *httptest.Server) {
-	// Start our recorder
-	recorder, err := recorder.NewAsMode(cassPath, mode, http.DefaultTransport)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "%s %s", r.Method, runID)
-		if r.Body != nil {
-			defer r.Body.Close()
-			fmt.Fprintln(w)
-			io.Copy(w, r.Body)
-		}
-	}))
-
-	return recorder, server
-}
-
-func httpRecorderTest(t *testing.T, runID string, tests []recordTest, cassPath string, mode recorder.Mode) (*recorder.Recorder, string) {
-	recorder, server := httpRecorderTestSetup(t, runID, cassPath, mode)
-	serverURL := server.URL
-
-	t.Log("test http requests")
-	for _, test := range tests {
-		test.perform(t, serverURL, recorder)
-	}
-
-	// Make sure recorder is stopped once done with it
-	server.Close()
-	t.Log("server shut down")
-
-	recorder.Stop()
-	t.Log("recorder stopped")
-
-	return recorder, serverURL
-}
-
-func (test recordTest) perform(t *testing.T, url string, r *recorder.Recorder) {
-	resp, err := test.performReq(t, context.Background(), url, r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	content, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(content) != test.want {
-		t.Fatalf("got:\t%s\n\twant:\t%s", string(content), test.want)
-	}
-	if resp.ContentLength != int64(test.wantContentLen) {
-		t.Fatalf("got ContentLength %d want %d", resp.ContentLength, test.wantContentLen)
-	}
-}
-
-func (test recordTest) performReq(t *testing.T, ctx context.Context, url string, r *recorder.Recorder) (*http.Response, error) {
-	// Create an HTTP client and inject our transport
-	client := &http.Client{
-		Transport: r, // Inject as transport!
-	}
-
-	req, err := http.NewRequest(test.method, url, strings.NewReader(test.body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return client.Do(req.WithContext(ctx))
-}
-
-func setupTests(t *testing.T, name string) (runID, cassPath string, tests []recordTest) {
-	runID = time.Now().Format(time.RFC3339Nano)
-
-	dir, err := ioutil.TempDir(os.TempDir(), "go-vcr-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	cassPath = path.Join(dir, name)
-	tests = httpTests(runID)
-
-	return
 }
