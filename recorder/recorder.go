@@ -167,7 +167,7 @@ func (r *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, error
 	reqBody := &bytes.Buffer{}
 	if r.Body != nil && r.Body != http.NoBody {
 		// Record the request body so we can add it to the cassette
-		r.Body = ioutil.NopCloser(io.TeeReader(r.Body, reqBody))
+		r.Body = io.NopCloser(io.TeeReader(r.Body, reqBody))
 	}
 
 	// Perform client request to it's original
