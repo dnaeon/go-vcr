@@ -29,7 +29,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/dnaeon/go-vcr.v2/recorder"
+	"gopkg.in/dnaeon/go-vcr.v3/recorder"
 )
 
 func TestHTTPS(t *testing.T) {

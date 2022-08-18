@@ -36,7 +36,7 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/dnaeon/go-vcr.v2/cassette"
+	"gopkg.in/dnaeon/go-vcr.v3/cassette"
 )
 
 // Mode represents the mode of operation of the recorder
