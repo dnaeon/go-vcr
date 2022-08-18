@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2015-2022 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,7 +26,6 @@ package vcr_test
 
 import (
 	"io/ioutil"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -41,11 +40,10 @@ func TestSimple(t *testing.T) {
 	}
 	defer r.Stop() // Make sure recorder is stopped once done with it
 
-	// Create an HTTP client and inject our transport
-	client := &http.Client{
-		Transport: r, // Inject as transport!
+	if r.Mode() != recorder.ModeRecordOnce {
+		t.Fatal("Recorder should be in ModeRecordOnce")
 	}
-
+	client := r.GetDefaultClient()
 	url := "http://golang.org/"
 	resp, err := client.Get(url)
 	if err != nil {

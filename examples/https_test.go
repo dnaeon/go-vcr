@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2016-2022 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@ func TestHTTPS(t *testing.T) {
 	defer r.Stop() // Make sure recorder is stopped once done with it
 
 	if r.Mode() != recorder.ModeRecordOnce {
-		t.Fatalf("Recorder should be in ModeRecordOnce")
+		t.Fatal("Recorder should be in ModeRecordOnce")
 	}
 
 	client := r.GetDefaultClient()
