@@ -364,24 +364,7 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 			<-time.After(interaction.Response.Duration)
 		}
 
-		buf := bytes.NewBuffer([]byte(interaction.Response.Body))
-		resp := &http.Response{
-			Status:           interaction.Response.Status,
-			StatusCode:       interaction.Response.Code,
-			Proto:            interaction.Response.Proto,
-			ProtoMajor:       interaction.Response.ProtoMajor,
-			ProtoMinor:       interaction.Response.ProtoMinor,
-			TransferEncoding: interaction.Response.TransferEncoding,
-			Trailer:          interaction.Response.Trailer,
-			ContentLength:    interaction.Response.ContentLength,
-			Uncompressed:     interaction.Response.Uncompressed,
-			Request:          req,
-			Header:           interaction.Response.Headers,
-			Close:            true,
-			Body:             ioutil.NopCloser(buf),
-		}
-
-		return resp, nil
+		return interaction.GetHTTPResponse()
 	}
 }
 
