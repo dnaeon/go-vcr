@@ -398,6 +398,109 @@ func TestRecordOnceWithMissingEpisodes(t *testing.T) {
 	}
 }
 
+func TestReplayWithNewEpisodes(t *testing.T) {
+	tests := []testCase{
+		{
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/bar",
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+	defer server.Close()
+
+	cassPath, err := newCassettePath("test_replay_with_missing_episodes")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	opts := &recorder.Options{
+		CassetteName: cassPath,
+		Mode:         recorder.ModeReplayWithNewEpisodes,
+	}
+	rec, err := recorder.NewWithOptions(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeReplayWithNewEpisodes {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	// Run tests
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Re-run again with new HTTP interactions
+	rec.Stop()
+
+	rec, err = recorder.NewWithOptions(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeReplayWithNewEpisodes {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	newTests := []testCase{
+		{
+			method:            http.MethodHead,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 12,
+			path:              "/api/v1/new-path-here",
+		},
+		{
+			method:            http.MethodPost,
+			body:              "bar",
+			wantBody:          "POST go-vcr\nbar",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/and-another-one-goes-here",
+		},
+	}
+
+	// New episodes should be added to the cassette
+	client = rec.GetDefaultClient()
+	for _, test := range newTests {
+		err := test.run(client, ctx, serverUrl)
+		if err != nil {
+			t.Fatalf("expected to add new episode, got error: %s", err)
+		}
+	}
+
+	// Verify cassette contents
+	rec.Stop()
+
+	c, err := cassette.Load(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	total := len(tests) + len(newTests)
+	if total != len(c.Interactions) {
+		t.Fatalf("expected %d recorded interactions, got %d", total, len(c.Interactions))
+	}
+}
+
 func TestPassthroughMode(t *testing.T) {
 	tests := []testCase{
 		{
