@@ -62,6 +62,16 @@ var (
 // Request represents a client request as recorded in the
 // cassette file
 type Request struct {
+	Proto            string   `yaml:"proto"`
+	ProtoMajor       int      `yaml:"proto_major"`
+	ProtoMinor       int      `yaml:"proto_minor"`
+	ContentLength    int64    `yaml:"content_length"`
+	TransferEncoding []string `yaml:"transfer_encoding"`
+	Trailer          Header   `yaml:"trailer"`
+	Host             string   `yaml:"host"`
+	RemoteAddr       string   `yaml:"remote_addr"`
+	RequestURI       string   `yaml:"request_uri"`
+
 	// Body of request
 	Body string `yaml:"body"`
 
