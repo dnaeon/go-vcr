@@ -124,11 +124,67 @@ type Interaction struct {
 	Response `yaml:"response"`
 }
 
+// GetHTTPRequest converts the recorded interaction request to
+// http.Request instance
+func (i *Interaction) GetHTTPRequest() (*http.Request, error) {
+	url, err := url.Parse(i.Request.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &http.Request{
+		Proto:            i.Request.Proto,
+		ProtoMajor:       i.Request.ProtoMajor,
+		ProtoMinor:       i.Request.ProtoMinor,
+		ContentLength:    i.Request.ContentLength,
+		TransferEncoding: i.Request.TransferEncoding,
+		Trailer:          i.Request.Trailer,
+		Host:             i.Request.Host,
+		RemoteAddr:       i.Request.RemoteAddr,
+		RequestURI:       i.Request.RequestURI,
+		Body:             io.NopCloser(strings.NewReader(i.Request.Body)),
+		Form:             i.Request.Form,
+		Header:           i.Request.Headers,
+		URL:              url,
+		Method:           i.Request.Method,
+	}
+
+	return req, nil
+}
+
+// GetHTTPResponse converts the recorded interaction response to
+// http.Response instance
+func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
+	req, err := i.GetHTTPRequest()
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &http.Response{
+		Status:           i.Response.Status,
+		StatusCode:       i.Response.Code,
+		Proto:            i.Response.Proto,
+		ProtoMajor:       i.Response.ProtoMajor,
+		ProtoMinor:       i.Response.ProtoMinor,
+		TransferEncoding: i.Response.TransferEncoding,
+		Trailer:          i.Response.Trailer,
+		ContentLength:    i.Response.ContentLength,
+		Uncompressed:     i.Response.Uncompressed,
+		Body:             io.NopCloser(strings.NewReader(i.Response.Body)),
+		Header:           i.Response.Headers,
+		Close:            true,
+		Request:          req,
+	}
+
+	return resp, nil
+}
+
 // Matcher function returns true when the actual request matches
 // a single HTTP interaction's request according to the function's
 // own criteria.
 type Matcher func(*http.Request, Request) bool
 
+// TODO: Remove matching on body
 // DefaultMatcher is used when a custom matcher is not defined and
 // compares only the method, URL and body of the HTTP request.
 func DefaultMatcher(r *http.Request, i Request) bool {
