@@ -439,5 +439,15 @@ func (rec *Recorder) AddSaveFilter(filter cassette.Filter) {
 
 // Mode returns recorder state
 func (rec *Recorder) Mode() Mode {
-	return rec.opts.Mode
+	return rec.options.Mode
+}
+
+// GetDefaultClient returns an HTTP client with a pre-configured
+// transport
+func (rec *Recorder) GetDefaultClient() *http.Client {
+	client := &http.Client{
+		Transport: rec,
+	}
+
+	return client
 }
