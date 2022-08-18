@@ -65,7 +65,9 @@ func TestHTTPS(t *testing.T) {
 
 	// This one should fail, because the recorder is in
 	// ModeRecordOnce mode, and there is no recorded interaction
-	// for this URL
+	// for this URL During first-time recording this block is
+	// usually commented out, so it doesn't end up in the initial
+	// recording.
 	resp, err = client.Get("https://www.google.com/")
 	if err == nil {
 		t.Fatal("Request to www.google.com has succeeded, and it should fail")
