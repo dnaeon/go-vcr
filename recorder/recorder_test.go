@@ -53,7 +53,7 @@ type testCase struct {
 }
 
 func (tc testCase) run(client *http.Client, ctx context.Context, serverUrl string) error {
-	url := fmt.Sprintf("%s/%s", serverUrl, tc.path)
+	url := fmt.Sprintf("%s%s", serverUrl, tc.path)
 	req, err := http.NewRequest(tc.method, url, strings.NewReader(tc.body))
 	if err != nil {
 		return err
@@ -793,5 +793,59 @@ func TestPreSaveFilter(t *testing.T) {
 		if c.Interactions[i].Request.Method == http.MethodPost && body != dummyBody {
 			t.Fatalf("want body: %q, got body: %q", dummyBody, body)
 		}
+	}
+}
+
+func TestReplayableInteractions(t *testing.T) {
+	tc := testCase{
+		method:            http.MethodGet,
+		wantBody:          "GET go-vcr\n",
+		wantStatus:        http.StatusOK,
+		wantContentLength: 11,
+		path:              "/api/v1/foo",
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+	defer server.Close()
+
+	cassPath, err := newCassettePath("test_replayable_interactions")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	rec, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecordOnce {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	// Configure replayable interactions
+	rec.SetReplayableInteractions(true)
+
+	// Run tests
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for i := 0; i < 10; i++ {
+		if err := tc.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// We should have only 1 interaction recorded
+	rec.Stop()
+
+	c, err := cassette.Load(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	total := len(c.Interactions)
+	if total != 1 {
+		t.Fatalf("expected 1 recorded interaction, got %d", total)
 	}
 }
