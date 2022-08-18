@@ -34,7 +34,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
-	"strconv"
 	"time"
 
 	"gopkg.in/dnaeon/go-vcr.v2/cassette"
@@ -126,8 +125,7 @@ type Recorder struct {
 type PassthroughFunc func(*http.Request) bool
 
 // Proxies client requests to their original destination
-// TODO: This should be a method of the recorder
-func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransport http.RoundTripper) (*cassette.Interaction, error) {
+func (r *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, error) {
 	// In Replaying or ReplayingOrRecording attempt to get the
 	// interaction from the cassette first. If we have a recorded
 	// interaction, return it.
@@ -191,18 +189,34 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 	// Add interaction to cassette
 	interaction := &cassette.Interaction{
 		Request: cassette.Request{
-			Body:    reqBody.String(),
-			Form:    copiedReq.PostForm,
-			Headers: r.Header,
-			URL:     r.URL.String(),
-			Method:  r.Method,
+			Proto:            r.Proto,
+			ProtoMajor:       r.ProtoMajor,
+			ProtoMinor:       r.ProtoMinor,
+			ContentLength:    r.ContentLength,
+			TransferEncoding: r.TransferEncoding,
+			Trailer:          r.Trailer,
+			Host:             r.Host,
+			RemoteAddr:       r.RemoteAddr,
+			RemoteURI:        r.RemoteURI,
+			Body:             reqBody.String(),
+			Form:             copiedReq.PostForm,
+			Headers:          r.Header,
+			URL:              r.URL.String(),
+			Method:           r.Method,
 		},
 		Response: cassette.Response{
-			Body:     string(respBody),
-			Headers:  resp.Header,
-			Status:   resp.Status,
-			Code:     resp.StatusCode,
-			Duration: requestDuration,
+			Status:           resp.Status,
+			Code:             resp.StatusCode,
+			Proto:            resp.Proto,
+			ProtoMajor:       resp.ProtoMajor,
+			ProtoMinor:       resp.ProtoMinor,
+			TransferEncoding: resp.TransferEncoding,
+			Trailer:          resp.Trailer,
+			ContentLength:    resp.ContentLength,
+			Uncompressed:     resp.Uncompressed,
+			Body:             string(respBody),
+			Headers:          resp.Header,
+			Duration:         requestDuration,
 		},
 	}
 	for _, filter := range c.Filters {
@@ -317,19 +331,19 @@ func (r *Recorder) SetRealTransport(t http.RoundTripper) {
 
 // RoundTrip implements the http.RoundTripper interface
 func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
-	if r.mode == ModeDisabled {
-		return r.realTransport.RoundTrip(req)
+	// Passthrough mode, use real transport
+	if r.opts.Mode == ModePassthrough {
+		return r.opts.RealTransport.RoundTrip(req)
 	}
 
-	for _, passthrough := range r.Passthroughs {
-		if passthrough(req) {
-			return r.realTransport.RoundTrip(req)
+	// Apply passthrough handler functions
+	for _, passthroughFunc := range r.passthroughFuncs {
+		if passthroughFunc(req) {
+			return r.opts.RealTransport.RoundTrip(req)
 		}
 	}
 
-	// Pass cassette and mode to handler, so that interactions can be
-	// retrieved or recorded depending on the current recorder mode
-	interaction, err := requestHandler(req, r.cassette, r.mode, r.realTransport)
+	interaction, err := r.requestHandler(req)
 	if err != nil {
 		return nil, err
 	}
@@ -338,36 +352,29 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	case <-req.Context().Done():
 		return nil, req.Context().Err()
 	default:
-		buf := bytes.NewBuffer([]byte(interaction.Response.Body))
 		// Apply the duration defined in the interaction
 		if !r.SkipRequestLatency {
 			<-time.After(interaction.Response.Duration)
 		}
 
-		contentLength := int64(buf.Len())
-		// For HTTP HEAD requests, the ContentLength should be set to the size
-		// of the body that would have been sent for a GET.
-		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.13
-		if req.Method == "HEAD" {
-			if hdr := interaction.Response.Headers.Get("Content-Length"); hdr != "" {
-				cl, err := strconv.ParseInt(hdr, 10, 64)
-				if err == nil {
-					contentLength = cl
-				}
-			}
+		buf := bytes.NewBuffer([]byte(interaction.Response.Body))
+		resp := &http.Response{
+			Status:           interaction.Response.Status,
+			StatusCode:       interaction.Response.Code,
+			Proto:            interaction.Response.Proto,
+			ProtoMajor:       interaction.Response.ProtoMajor,
+			ProtoMinor:       interaction.Response.ProtoMinor,
+			TransferEncoding: interaction.Response.TransferEncoding,
+			Trailer:          interaction.Response.Trailer,
+			ContentLength:    interaction.Response.ContentLength,
+			Uncompressed:     interaction.Response.Uncompressed,
+			Request:          req,
+			Header:           interaction.Response.Headers,
+			Close:            true,
+			Body:             ioutil.NopCloser(buf),
 		}
-		return &http.Response{
-			Status:        interaction.Response.Status,
-			StatusCode:    interaction.Response.Code,
-			Proto:         "HTTP/1.0",
-			ProtoMajor:    1,
-			ProtoMinor:    0,
-			Request:       req,
-			Header:        interaction.Response.Headers,
-			Close:         true,
-			ContentLength: contentLength,
-			Body:          ioutil.NopCloser(buf),
-		}, nil
+
+		return resp, nil
 	}
 }
 
