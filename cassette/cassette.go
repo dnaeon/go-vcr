@@ -81,6 +81,14 @@ type Request struct {
 // Response represents a server response as recorded in the
 // cassette file
 type Response struct {
+	Proto            string   `yaml:"proto"`
+	ProtoMajor       int      `yaml:"proto_major"`
+	ProtoMinor       int      `yaml:"proto_minor"`
+	TransferEncoding []string `yaml:"transfer_encoding"`
+	Trailer          Header   `yaml:"trailer"`
+	ContentLength    int64    `yaml:"content_length"`
+	Uncompressed     bool     `yaml:"uncompressed"`
+
 	// Body of response
 	Body string `yaml:"body"`
 
