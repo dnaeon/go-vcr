@@ -28,6 +28,7 @@ package recorder
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -82,6 +83,10 @@ const (
 	ModePassthrough
 )
 
+// ErrInvalidMode is returned when attempting to start the recorder
+// with invalid mode
+var ErrInvalidMode = errors.New("invalid recorder mode")
+
 // Option represents the Recorder options
 type Options struct {
 	// CassetteName is the name of the cassette
@@ -121,14 +126,9 @@ type Recorder struct {
 // otherwise.
 type PassthroughFunc func(*http.Request) bool
 
-// SetTransport can be used to configure the behavior of the 'real' client used in record-mode
-func (r *Recorder) SetTransport(t http.RoundTripper) {
-	r.realTransport = t
-}
-
 // Proxies client requests to their original destination
+// TODO: This should be a method of the recorder
 func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransport http.RoundTripper) (*cassette.Interaction, error) {
-
 	// In Replaying or ReplayingOrRecording attempt to get the
 	// interaction from the cassette first. If we have a recorded
 	// interaction, return it.
@@ -219,48 +219,81 @@ func requestHandler(r *http.Request, c *cassette.Cassette, mode Mode, realTransp
 
 // New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
-	return NewAsMode(cassetteName, ModeReplayingOrRecording, nil)
+	opts := &Options{
+		CassetteName:       cassetteName,
+		Mode:               ModeRecordOnce,
+		SkipRequestLatency: false,
+		RealTransport:      http.DefaultTransport,
+	}
+
+	return NewWithOptions(opts)
 }
 
-// NewAsMode creates a new recorder in the specified mode
-func NewAsMode(cassetteName string, mode Mode, realTransport http.RoundTripper) (*Recorder, error) {
-	var r = &Recorder{
-		mode:          mode,
-		realTransport: realTransport,
+// NewWithOptions creates a new recorder based on the provided options
+func NewWithOptions(opts *Options) (*Recorder, error) {
+	if opts.RealTransport == nil {
+		opts.RealTransport = http.DefaultTransport
 	}
 
-	if r.realTransport == nil {
-		r.realTransport = http.DefaultTransport
+	rec := &Recorder{
+		cassette:         nil,
+		options:          opts,
+		passthroughFuncs: make([]PassthroughFunc, 0),
 	}
 
-	// Disabled mode has no cassette
-	if mode == ModeDisabled || mode == ModePassthrough {
-		return r, nil
-	}
+	cassetteFile := fmt.Sprintf("%s.yaml", opts.CassetteName)
+	_, err := os.Stat(cassetteFile)
+	cassetteExists := !os.IsNotExist(err)
 
-	cassetteFile := fmt.Sprintf("%s.yaml", cassetteName)
-
-	// Check if the cassette exists
-	if _, err := os.Stat(cassetteFile); os.IsNotExist(err) {
-		// Replaying mode should fail if no cassette exists
-		if mode == ModeReplaying {
-			return nil, cassette.ErrCassetteNotFound
+	switch {
+	case opts.Mode == ModeRecordOnly:
+		c := cassette.New(cassetteName)
+		rec.cassette = c
+		return rec
+	case opts.Mode == ModeReplayOnly && !cassetteExists:
+		return nil, cassette.ErrCassetteNotFound
+	case opts.Mode == ModeReplayOnly && cassetteExists:
+		c, err := cassette.Load(cassetteName)
+		if err != nil {
+			return nil, err
 		}
-
-		// Otherwise we are in a recording mode, create new cassette and enter in recording mode
-		r.cassette = cassette.New(cassetteName)
-
-		return r, nil
+		rec.cassette = c
+		return rec, nil
+	case opts.Mode == ModeReplayWithNewEpisodes && !cassetteExists:
+		c := cassette.New(cassetteName)
+		rec.cassette = c
+		return rec, nil
+	case opts.Mode == ModeReplayWithNewEpisodes && cassetteExists:
+		c, err := cassette.Load(cassetteName)
+		if err != nil {
+			return nil, err
+		}
+		rec.cassette = c
+		return rec, nil
+	case opts.Mode == ModeRecordOnce && !cassetteExists:
+		c := cassette.New(cassetteName)
+		rec.cassette = c
+		return rec, nil
+	case opts.Mode == ModeRecordOnce && cassetteExists:
+		c, err := cassette.Load(cassetteName)
+		if err != nil {
+			return nil, err
+		}
+		rec.cassette = c
+		return rec, nil
+	case opts.Mode == ModePassthrough:
+		c := cassette.New(cassetteName)
+		rec.cassette = c
+		return rec, nil
+	default:
+		return nil, ErrInvalidMode
 	}
+}
 
-	// Load cassette from file and enter replay mode or replay/record mode
-	var err error
-	r.cassette, err = cassette.Load(cassetteName)
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
+// SetRealTransport can be used to configure the real HTTP transport
+// of the recorder.
+func (r *Recorder) SetRealTransport(t http.RoundTripper) {
+	r.opts.RealTransport = t
 }
 
 // Stop is used to stop the recorder and save any recorded interactions
@@ -279,6 +312,7 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	if r.mode == ModeDisabled {
 		return r.realTransport.RoundTrip(req)
 	}
+
 	for _, passthrough := range r.Passthroughs {
 		if passthrough(req) {
 			return r.realTransport.RoundTrip(req)
@@ -288,7 +322,6 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Pass cassette and mode to handler, so that interactions can be
 	// retrieved or recorded depending on the current recorder mode
 	interaction, err := requestHandler(req, r.cassette, r.mode, r.realTransport)
-
 	if err != nil {
 		return nil, err
 	}
