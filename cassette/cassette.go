@@ -42,7 +42,11 @@ import (
 
 // Cassette format versions
 const (
-	cassetteFormatV1 = 1
+	// Version 1 of the cassette format
+	CassetteFormatV1 = 1
+
+	// Version 2 of the cassette format
+	CassetteFormatV2 = 2
 )
 
 var (
