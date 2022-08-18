@@ -40,6 +40,10 @@ func TestHTTPS(t *testing.T) {
 	}
 	defer r.Stop() // Make sure recorder is stopped once done with it
 
+	if r.Mode() != recorder.ModeRecordOnce {
+		t.Fatalf("Recorder should be in ModeRecordOnce")
+	}
+
 	client := r.GetDefaultClient()
 	url := "https://www.iana.org/domains/reserved"
 	resp, err := client.Get(url)
@@ -57,5 +61,13 @@ func TestHTTPS(t *testing.T) {
 
 	if !strings.Contains(bodyContent, wantHeading) {
 		t.Errorf("Heading %s not found in response", wantHeading)
+	}
+
+	// This one should fail, because the recorder is in
+	// ModeRecordOnce mode, and there is no recorded interaction
+	// for this URL
+	resp, err = client.Get("https://www.google.com/")
+	if err == nil {
+		t.Fatal("Request to www.google.com has succeeded, and it should fail")
 	}
 }
