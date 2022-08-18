@@ -26,7 +26,6 @@ package vcr_test
 
 import (
 	"io/ioutil"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -41,11 +40,7 @@ func TestHTTPS(t *testing.T) {
 	}
 	defer r.Stop() // Make sure recorder is stopped once done with it
 
-	// Create an HTTP client and inject our transport
-	client := &http.Client{
-		Transport: r, // Inject as transport!
-	}
-
+	client := r.GetDefaultClient()
 	url := "https://www.iana.org/domains/reserved"
 	resp, err := client.Get(url)
 	if err != nil {
