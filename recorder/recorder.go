@@ -40,58 +40,63 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v2/cassette"
 )
 
-// Mode represents recording/playback mode
+// Mode represents the mode of operation of the recorder
 type Mode int
 
 // Recorder states
 const (
-	// ModeRecording specifies that VCR will run in recording mode
-	// and create new cassettes for each HTTP interaction.
-	ModeRecording Mode = iota
+	// ModeRecordOnly specifies that VCR will run in recording
+	// mode only. HTTP interactions will be recorded for each
+	// interaction. If the cassette file is present, it will be
+	// overwritten.
+	ModeRecordOnly Mode = iota
 
-	// ModeReplaying specifies that VCR will *only* replay HTTP
-	// interactions from previously recorded cassettes. If a
-	// cassette is missing while running in this mode, the
-	// cassette.ErrCassetteNotFound error will be returned.
-	ModeReplaying
+	// ModeReplayOnly specifies that VCR will only replay
+	// interactions from previously recorded cassette. If an
+	// interaction is missing from the cassette it will return
+	// ErrInteractionNotFound error. If the cassette file is
+	// missing it will return ErrCassetteNotFound error.
+	ModeReplayOnly
 
-	// ModeDisabled specifies that VCR will not record any
-	// interactions and the real HTTP transport will be used
-	// instead. This mode works as a pass-through.
-	ModeDisabled
+	// ModeReplayWithNewEpisodes starts the recorder in replay
+	// mode, where existing interactions are returned from the
+	// cassette, and missing ones will be recorded and added to
+	// the cassette. This mode is useful in cases where you need
+	// to update an existing cassette with new interactions, but
+	// don't want to wipe out previously recorded interactions.
+	// If the cassette file is missing it will create a new one.
+	ModeReplayWithNewEpisodes
 
-	// ModeReplayingOrRecording replays previously recorded
-	// interactions from the cassettes, or updates the cassettes,
-	// if an HTTP interaction is not found.
-	ModeReplayingOrRecording
+	// ModeRecordOnce will record new HTTP interactions once only.
+	// This mode is useful in cases where you need to record a set
+	// of interactions once only and replay only the known
+	// interactions. Unknown/missing interactions will cause the
+	// recorder to return an ErrInteractionNotFound error. If the
+	// cassette file is missing, it will be created.
+	ModeRecordOnce
 
-	// ModePassthrough is a synonym for ModeDisabled
-	ModePassthrough = ModeDisabled
+	// ModePassthrough specifies that VCR will not record any
+	// interactions at all. In this mode all HTTP requests will be
+	// forwarded to the endpoints using the real HTTP transport.
+	// In this mode no cassette will be created.
+	ModePassthrough
 )
 
 // Recorder represents a type used to record and replay
 // client and server interactions
 type Recorder struct {
-	// Operating mode of the recorder
-	mode Mode
-
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
 
-	// realTransport is the underlying http.RoundTripper to make real requests
-	realTransport http.RoundTripper
+	// Recorder options
+	options *Options
 
 	// Pass through requests.
+	// TODO: Rename to handlers
 	Passthroughs []Passthrough
-
-	// SkipRequestLatency if set to true will not simulate the
-	// latency of the original request. When set to false
-	// (default) it will block for the period of time taken by the
-	// original request to simulate the latency between our
-	// recorder and the remote endpoints.
-	SkipRequestLatency bool
 }
 
+// TODO: Rename to PassthroughHandler
 // Passthrough function allows ignoring certain requests.
 type Passthrough func(*http.Request) bool
 
