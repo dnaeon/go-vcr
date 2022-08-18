@@ -318,12 +318,14 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 		},
 	}
 
+	// Apply filters before adding them to the in-memory cassette
 	for _, filter := range rec.filters {
 		err = filter(interaction)
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	rec.cassette.AddInteraction(interaction)
 
 	return interaction, nil

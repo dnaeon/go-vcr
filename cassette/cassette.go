@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2015-2022 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -61,7 +61,7 @@ var (
 	// ErrUnsupportedCassetteFormat is returned when attempting to
 	// use an older and potentially unsupported format of a
 	// cassette
-	ErrUnsupportedCassetteFormat = fmt.Errorf("unsupported cassette format, min required version is v%d", CassetteFormatV2)
+	ErrUnsupportedCassetteFormat = fmt.Errorf("required version of cassette is v%d", CassetteFormatV2)
 )
 
 // Request represents a client request as recorded in the
@@ -255,7 +255,7 @@ func Load(name string) (*Cassette, error) {
 		return nil, err
 	}
 
-	if c.Version < CassetteFormatV2 {
+	if c.Version != CassetteFormatV2 {
 		return nil, ErrUnsupportedCassetteFormat
 	}
 
@@ -287,6 +287,7 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 func (c *Cassette) Save() error {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
+
 	// Save cassette file only if there were any interactions made
 	if len(c.Interactions) == 0 {
 		return nil
