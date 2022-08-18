@@ -82,6 +82,26 @@ const (
 	ModePassthrough
 )
 
+// Option represents the Recorder options
+type Options struct {
+	// CassetteName is the name of the cassette
+	CassetteName string
+
+	// Mode is the operating mode of the Recorder
+	Mode Mode
+
+	// RealTransport is the underlying http.RoundTripper to make
+	// the real requests
+	RealTransport http.RoundTripper
+
+	// SkipRequestLatency, if set to true will not simulate the
+	// latency of the recorded interaction. When set to false
+	// (default) it will block for the period of time taken by the
+	// original request to simulate the latency between our
+	// recorder and the remote endpoints.
+	SkipRequestLatency bool
+}
+
 // Recorder represents a type used to record and replay
 // client and server interactions
 type Recorder struct {
