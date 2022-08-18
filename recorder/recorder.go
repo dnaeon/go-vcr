@@ -111,14 +111,15 @@ type Recorder struct {
 	// Recorder options
 	options *Options
 
-	// Pass through requests.
-	// TODO: Rename to handlers
-	Passthroughs []Passthrough
+	// Passthrough handlers
+	passthroughFuncs []PassthroughFunc
 }
 
-// TODO: Rename to PassthroughHandler
-// Passthrough function allows ignoring certain requests.
-type Passthrough func(*http.Request) bool
+// PassthroughFunc is handler which determines whether a specific HTTP
+// request is to be forwarded to the original endpoint. It should
+// return true when a request needs to be passed through, and false
+// otherwise.
+type PassthroughFunc func(*http.Request) bool
 
 // SetTransport can be used to configure the behavior of the 'real' client used in record-mode
 func (r *Recorder) SetTransport(t http.RoundTripper) {
