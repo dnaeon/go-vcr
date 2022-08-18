@@ -154,42 +154,42 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 
 	switch {
 	case opts.Mode == ModeRecordOnly:
-		c := cassette.New(cassetteName)
+		c := cassette.New(opts.CassetteName)
 		rec.cassette = c
-		return rec
+		return rec, nil
 	case opts.Mode == ModeReplayOnly && !cassetteExists:
 		return nil, cassette.ErrCassetteNotFound
 	case opts.Mode == ModeReplayOnly && cassetteExists:
-		c, err := cassette.Load(cassetteName)
+		c, err := cassette.Load(opts.CassetteName)
 		if err != nil {
 			return nil, err
 		}
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModeReplayWithNewEpisodes && !cassetteExists:
-		c := cassette.New(cassetteName)
+		c := cassette.New(opts.CassetteName)
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModeReplayWithNewEpisodes && cassetteExists:
-		c, err := cassette.Load(cassetteName)
+		c, err := cassette.Load(opts.CassetteName)
 		if err != nil {
 			return nil, err
 		}
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModeRecordOnce && !cassetteExists:
-		c := cassette.New(cassetteName)
+		c := cassette.New(opts.CassetteName)
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModeRecordOnce && cassetteExists:
-		c, err := cassette.Load(cassetteName)
+		c, err := cassette.Load(opts.CassetteName)
 		if err != nil {
 			return nil, err
 		}
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModePassthrough:
-		c := cassette.New(cassetteName)
+		c := cassette.New(opts.CassetteName)
 		rec.cassette = c
 		return rec, nil
 	default:
@@ -204,9 +204,9 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 	}
 
 	switch {
-	case rec.opts.Mode == ModeReplayOnly:
+	case rec.options.Mode == ModeReplayOnly:
 		return rec.cassette.GetInteraction(r)
-	case rec.opts.Mode == ModeReplayWithNewEpisodes:
+	case rec.options.Mode == ModeReplayWithNewEpisodes:
 		interaction, err := rec.cassette.GetInteraction(r)
 		if err == nil {
 			// Interaction found, return it
@@ -218,7 +218,7 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 			// Any other error is an error
 			return nil, err
 		}
-	case rec.opts.Mode == ModeRecordOnce && !rec.cassette.IsNew:
+	case rec.options.Mode == ModeRecordOnce && !rec.cassette.IsNew:
 		// We've got an existing cassette, return what we've got
 		return rec.cassette.GetInteraction(r)
 	default:
@@ -253,7 +253,7 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 	// Perform request to it's original destination and record the interactions
 	var start time.Time
 	start = time.Now()
-	resp, err := rec.opts.RealTransport.RoundTrip(r)
+	resp, err := rec.options.RealTransport.RoundTrip(r)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +276,7 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 			Trailer:          r.Trailer,
 			Host:             r.Host,
 			RemoteAddr:       r.RemoteAddr,
-			RemoteURI:        r.RemoteURI,
+			RequestURI:       r.RequestURI,
 			Body:             reqBody.String(),
 			Form:             copiedReq.PostForm,
 			Headers:          r.Header,
@@ -305,7 +305,7 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 			return nil, err
 		}
 	}
-	c.AddInteraction(interaction)
+	rec.cassette.AddInteraction(interaction)
 
 	return interaction, nil
 }
@@ -319,12 +319,12 @@ func (rec *Recorder) Stop() error {
 	cassetteExists := !os.IsNotExist(err)
 
 	switch {
-	case rec.opts.Mode == ModeRecordOnly || rec.opts.Mode == ModeReplayWithNewEpisodes:
-		return r.cassette.Save()
-	case rec.opts.Mode == ModeReplayOnly || rec.opts.Mode == ModePassthrough:
+	case rec.options.Mode == ModeRecordOnly || rec.options.Mode == ModeReplayWithNewEpisodes:
+		return rec.cassette.Save()
+	case rec.options.Mode == ModeReplayOnly || rec.options.Mode == ModePassthrough:
 		return nil
-	case rec.opts.Mode == ModeRecordOnce && !cassetteExists:
-		return r.cassette.Save()
+	case rec.options.Mode == ModeRecordOnce && !cassetteExists:
+		return rec.cassette.Save()
 	default:
 		return nil
 	}
@@ -333,20 +333,20 @@ func (rec *Recorder) Stop() error {
 // SetRealTransport can be used to configure the real HTTP transport
 // of the recorder.
 func (rec *Recorder) SetRealTransport(t http.RoundTripper) {
-	rec.opts.RealTransport = t
+	rec.options.RealTransport = t
 }
 
 // RoundTrip implements the http.RoundTripper interface
 func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Passthrough mode, use real transport
-	if rec.opts.Mode == ModePassthrough {
-		return rec.opts.RealTransport.RoundTrip(req)
+	if rec.options.Mode == ModePassthrough {
+		return rec.options.RealTransport.RoundTrip(req)
 	}
 
 	// Apply passthrough handler functions
 	for _, passthroughFunc := range rec.passthroughFuncs {
 		if passthroughFunc(req) {
-			return rec.opts.RealTransport.RoundTrip(req)
+			return rec.options.RealTransport.RoundTrip(req)
 		}
 	}
 
@@ -360,7 +360,7 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, req.Context().Err()
 	default:
 		// Apply the duration defined in the interaction
-		if !rec.SkipRequestLatency {
+		if !rec.options.SkipRequestLatency {
 			<-time.After(interaction.Response.Duration)
 		}
 
@@ -391,7 +391,7 @@ func (rec *Recorder) CancelRequest(req *http.Request) {
 	type cancelableTransport interface {
 		CancelRequest(req *http.Request)
 	}
-	if ct, ok := rec.opts.RealTransport.(cancelableTransport); ok {
+	if ct, ok := rec.options.RealTransport.(cancelableTransport); ok {
 		ct.CancelRequest(req)
 	}
 }
@@ -414,8 +414,8 @@ func (rec *Recorder) SetReplayableInteractions(replayable bool) {
 
 // AddPassthrough appends a hook to determine if a request should be
 // ignored by the recorder.
-func (rec *Recorder) AddPassthrough(pass Passthrough) {
-	rec.Passthroughs = append(rec.Passthroughs, pass)
+func (rec *Recorder) AddPassthrough(pass PassthroughFunc) {
+	rec.passthroughFuncs = append(rec.passthroughFuncs, pass)
 }
 
 // AddFilter appends a hook to modify a request before it is recorded.

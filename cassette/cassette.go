@@ -28,12 +28,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,15 +64,15 @@ var (
 // Request represents a client request as recorded in the
 // cassette file
 type Request struct {
-	Proto            string   `yaml:"proto"`
-	ProtoMajor       int      `yaml:"proto_major"`
-	ProtoMinor       int      `yaml:"proto_minor"`
-	ContentLength    int64    `yaml:"content_length"`
-	TransferEncoding []string `yaml:"transfer_encoding"`
-	Trailer          Header   `yaml:"trailer"`
-	Host             string   `yaml:"host"`
-	RemoteAddr       string   `yaml:"remote_addr"`
-	RequestURI       string   `yaml:"request_uri"`
+	Proto            string      `yaml:"proto"`
+	ProtoMajor       int         `yaml:"proto_major"`
+	ProtoMinor       int         `yaml:"proto_minor"`
+	ContentLength    int64       `yaml:"content_length"`
+	TransferEncoding []string    `yaml:"transfer_encoding"`
+	Trailer          http.Header `yaml:"trailer"`
+	Host             string      `yaml:"host"`
+	RemoteAddr       string      `yaml:"remote_addr"`
+	RequestURI       string      `yaml:"request_uri"`
 
 	// Body of request
 	Body string `yaml:"body"`
@@ -91,13 +93,13 @@ type Request struct {
 // Response represents a server response as recorded in the
 // cassette file
 type Response struct {
-	Proto            string   `yaml:"proto"`
-	ProtoMajor       int      `yaml:"proto_major"`
-	ProtoMinor       int      `yaml:"proto_minor"`
-	TransferEncoding []string `yaml:"transfer_encoding"`
-	Trailer          Header   `yaml:"trailer"`
-	ContentLength    int64    `yaml:"content_length"`
-	Uncompressed     bool     `yaml:"uncompressed"`
+	Proto            string      `yaml:"proto"`
+	ProtoMajor       int         `yaml:"proto_major"`
+	ProtoMinor       int         `yaml:"proto_minor"`
+	TransferEncoding []string    `yaml:"transfer_encoding"`
+	Trailer          http.Header `yaml:"trailer"`
+	ContentLength    int64       `yaml:"content_length"`
+	Uncompressed     bool        `yaml:"uncompressed"`
 
 	// Body of response
 	Body string `yaml:"body"`
@@ -236,24 +238,30 @@ type Cassette struct {
 	// SaveFilters are applied to interactions just before they
 	// are saved.
 	SaveFilters []Filter `yaml:"-"`
+
+	// IsNew specifies whether this is a newly created cassette
+	IsNew bool `yaml:"-"`
 }
 
 // New creates a new empty cassette
 func New(name string) *Cassette {
 	c := &Cassette{
-		Name:         name,
-		File:         fmt.Sprintf("%s.yaml", name),
-		Version:      cassetteFormatV1,
-		Interactions: make([]*Interaction, 0),
-		Matcher:      DefaultMatcher,
-		Filters:      make([]Filter, 0),
-		SaveFilters:  make([]Filter, 0),
+		Name:                   name,
+		File:                   fmt.Sprintf("%s.yaml", name),
+		Version:                CassetteFormatV2,
+		Interactions:           make([]*Interaction, 0),
+		Matcher:                DefaultMatcher,
+		Filters:                make([]Filter, 0),
+		SaveFilters:            make([]Filter, 0),
+		ReplayableInteractions: false,
+		IsNew:                  true,
 	}
 
 	return c
 }
 
 // Load reads a cassette file from disk
+// TODO: v1 is not supported
 func Load(name string) (*Cassette, error) {
 	c := New(name)
 	data, err := ioutil.ReadFile(c.File)
@@ -261,6 +269,7 @@ func Load(name string) (*Cassette, error) {
 		return nil, err
 	}
 
+	c.IsNew = false
 	err = yaml.Unmarshal(data, &c)
 
 	return c, err
