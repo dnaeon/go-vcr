@@ -85,6 +85,16 @@ const (
 // with invalid mode
 var ErrInvalidMode = errors.New("invalid recorder mode")
 
+// FilterFunc represents a function, which allows modification of an
+// interaction before being added to the cassette
+type FilterFunc func(*cassette.Interaction) error
+
+// PassthroughFunc is handler which determines whether a specific HTTP
+// request is to be forwarded to the original endpoint. It should
+// return true when a request needs to be passed through, and false
+// otherwise.
+type PassthroughFunc func(*http.Request) bool
+
 // Option represents the Recorder options
 type Options struct {
 	// CassetteName is the name of the cassette
@@ -116,13 +126,21 @@ type Recorder struct {
 
 	// Passthrough handlers
 	passthroughFuncs []PassthroughFunc
-}
 
-// PassthroughFunc is handler which determines whether a specific HTTP
-// request is to be forwarded to the original endpoint. It should
-// return true when a request needs to be passed through, and false
-// otherwise.
-type PassthroughFunc func(*http.Request) bool
+	// filters is a set of FilterFunc handlers, which are invoked
+	// before the interaction is added to the cassette. The
+	// interaction is still in-memory and not persisted on
+	// disk. These filters are different than the PreSaveFilters,
+	// which are invoked right before persisting the cassette on
+	// disk.
+	filters []FilterFunc
+
+	// preSaveFilters are applied to interactions just before they
+	// are saved on disk. These are different than the Filters,
+	// which are usually applied to the interactions before they
+	// are added to the cassette, which is still in-memory.
+	preSaveFilters []FilterFunc
+}
 
 // New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
@@ -145,6 +163,8 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 	rec := &Recorder{
 		options:          opts,
 		passthroughFuncs: make([]PassthroughFunc, 0),
+		filters:          make([]FilterFunc, 0),
+		preSaveFilters:   make([]FilterFunc, 0),
 	}
 
 	cassetteFile := cassette.New(opts.CassetteName).File
@@ -298,7 +318,7 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 		},
 	}
 
-	for _, filter := range rec.cassette.Filters {
+	for _, filter := range rec.filters {
 		err = filter(interaction)
 		if err != nil {
 			return nil, err
@@ -319,14 +339,28 @@ func (rec *Recorder) Stop() error {
 
 	switch {
 	case rec.options.Mode == ModeRecordOnly || rec.options.Mode == ModeReplayWithNewEpisodes:
-		return rec.cassette.Save()
+		return rec.persistCassette()
 	case rec.options.Mode == ModeReplayOnly || rec.options.Mode == ModePassthrough:
 		return nil
 	case rec.options.Mode == ModeRecordOnce && !cassetteExists:
-		return rec.cassette.Save()
+		return rec.persistCassette()
 	default:
 		return nil
 	}
+}
+
+// persisteCassette persists the cassette on disk for future re-use
+func (rec *Recorder) persistCassette() error {
+	// Apply any pre-save filters
+	for _, interaction := range rec.cassette.Interactions {
+		for _, filter := range rec.preSaveFilters {
+			if err := filter(interaction); err != nil {
+				return err
+			}
+		}
+	}
+
+	return rec.cassette.Save()
 }
 
 // SetRealTransport can be used to configure the real HTTP transport
@@ -396,19 +430,17 @@ func (rec *Recorder) AddPassthrough(pass PassthroughFunc) {
 	rec.passthroughFuncs = append(rec.passthroughFuncs, pass)
 }
 
-// AddFilter appends a hook to modify a request before it is recorded.
-//
-// Filters are useful for filtering out sensitive parameters from the recorded data.
-func (rec *Recorder) AddFilter(filter cassette.Filter) {
-	rec.cassette.Filters = append(rec.cassette.Filters, filter)
+// AddFilter appends a hook to modify an interaction before it is
+// added to the cassette.  Note, that the cassette is not yet saved on
+// disk, but the interaction is only added to the in-memory cassette.
+func (rec *Recorder) AddFilter(filter FilterFunc) {
+	rec.filters = append(rec.filters, filter)
 }
 
-// AddSaveFilter appends a hook to modify a request before it is saved.
-//
-// This filter is suitable for treating recorded responses to remove sensitive data. Altering responses using a regular
-// AddFilter can have unintended consequences on code that is consuming responses.
-func (rec *Recorder) AddSaveFilter(filter cassette.Filter) {
-	rec.cassette.SaveFilters = append(rec.cassette.SaveFilters, filter)
+// AddPreSaveFilter appends a hook to modify an interaction just
+// before the cassette is saved on disk.
+func (rec *Recorder) AddPreSaveFilter(filter FilterFunc) {
+	rec.preSaveFilters = append(rec.preSaveFilters, filter)
 }
 
 // Mode returns recorder state

@@ -189,15 +189,12 @@ func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
 // own criteria.
 type Matcher func(*http.Request, Request) bool
 
+// TODO: Pass two requests here
 // DefaultMatcher is used when a custom matcher is not defined and
 // compares only the method and of the HTTP request.
 func DefaultMatcher(r *http.Request, i Request) bool {
 	return r.Method == i.Method && r.URL.String() == i.URL
 }
-
-// TODO: This should be a filter on the Recorder, and not the cassette
-// Filter function allows modification of an interaction before saving.
-type Filter func(*Interaction) error
 
 // Cassette type
 type Cassette struct {
@@ -224,14 +221,9 @@ type Cassette struct {
 	// Matches actual request with interaction requests.
 	Matcher Matcher `yaml:"-"`
 
-	// Filters interactions before when they are captured.
-	Filters []Filter `yaml:"-"`
-
-	// SaveFilters are applied to interactions just before they
-	// are saved.
-	SaveFilters []Filter `yaml:"-"`
-
-	// IsNew specifies whether this is a newly created cassette
+	// IsNew specifies whether this is a newly created cassette.
+	// Returns false, when the cassette was loaded from an
+	// existing source, e.g. a file.
 	IsNew bool `yaml:"-"`
 }
 
@@ -243,8 +235,6 @@ func New(name string) *Cassette {
 		Version:                CassetteFormatV2,
 		Interactions:           make([]*Interaction, 0),
 		Matcher:                DefaultMatcher,
-		Filters:                make([]Filter, 0),
-		SaveFilters:            make([]Filter, 0),
 		ReplayableInteractions: false,
 		IsNew:                  true,
 	}
@@ -300,14 +290,6 @@ func (c *Cassette) Save() error {
 	// Save cassette file only if there were any interactions made
 	if len(c.Interactions) == 0 {
 		return nil
-	}
-
-	for _, interaction := range c.Interactions {
-		for _, filter := range c.SaveFilters {
-			if err := filter(interaction); err != nil {
-				return err
-			}
-		}
 	}
 
 	// Create directory for cassette if missing
