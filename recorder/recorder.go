@@ -124,112 +124,6 @@ type Recorder struct {
 // otherwise.
 type PassthroughFunc func(*http.Request) bool
 
-// Proxies client requests to their original destination
-func (r *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, error) {
-	// In Replaying or ReplayingOrRecording attempt to get the
-	// interaction from the cassette first. If we have a recorded
-	// interaction, return it.
-	if mode == ModeReplaying || mode == ModeReplayingOrRecording {
-		if err := r.Context().Err(); err != nil {
-			return nil, err
-		}
-
-		interaction, err := c.GetInteraction(r)
-		switch {
-		case mode == ModeReplaying:
-			// In ModeReplaying return what we've got from
-			// the cassette
-			return interaction, err
-		case mode == ModeReplayingOrRecording && err == nil:
-			// ReplayingOrRecording, and we've got a
-			// recorded interaction, so return it
-			return interaction, err
-		}
-	}
-
-	// Copy the original request, so we can read the form values
-	reqBytes, err := httputil.DumpRequestOut(r, true)
-	if err != nil {
-		return nil, err
-	}
-
-	reqBuffer := bytes.NewBuffer(reqBytes)
-	copiedReq, err := http.ReadRequest(bufio.NewReader(reqBuffer))
-	if err != nil {
-		return nil, err
-	}
-
-	err = copiedReq.ParseForm()
-	if err != nil {
-		return nil, err
-	}
-
-	reqBody := &bytes.Buffer{}
-	if r.Body != nil && r.Body != http.NoBody {
-		// Record the request body so we can add it to the cassette
-		r.Body = io.NopCloser(io.TeeReader(r.Body, reqBody))
-	}
-
-	// Perform client request to it's original
-	// destination and record interactions
-	var start time.Time
-	start = time.Now()
-	resp, err := realTransport.RoundTrip(r)
-	if err != nil {
-		return nil, err
-	}
-	requestDuration := time.Since(start)
-	defer resp.Body.Close()
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add interaction to cassette
-	interaction := &cassette.Interaction{
-		Request: cassette.Request{
-			Proto:            r.Proto,
-			ProtoMajor:       r.ProtoMajor,
-			ProtoMinor:       r.ProtoMinor,
-			ContentLength:    r.ContentLength,
-			TransferEncoding: r.TransferEncoding,
-			Trailer:          r.Trailer,
-			Host:             r.Host,
-			RemoteAddr:       r.RemoteAddr,
-			RemoteURI:        r.RemoteURI,
-			Body:             reqBody.String(),
-			Form:             copiedReq.PostForm,
-			Headers:          r.Header,
-			URL:              r.URL.String(),
-			Method:           r.Method,
-		},
-		Response: cassette.Response{
-			Status:           resp.Status,
-			Code:             resp.StatusCode,
-			Proto:            resp.Proto,
-			ProtoMajor:       resp.ProtoMajor,
-			ProtoMinor:       resp.ProtoMinor,
-			TransferEncoding: resp.TransferEncoding,
-			Trailer:          resp.Trailer,
-			ContentLength:    resp.ContentLength,
-			Uncompressed:     resp.Uncompressed,
-			Body:             string(respBody),
-			Headers:          resp.Header,
-			Duration:         requestDuration,
-		},
-	}
-	for _, filter := range c.Filters {
-		err = filter(interaction)
-		if err != nil {
-			return nil, err
-		}
-	}
-	c.AddInteraction(interaction)
-
-	return interaction, nil
-}
-
 // New creates a new recorder
 func New(cassetteName string) (*Recorder, error) {
 	opts := &Options{
@@ -303,20 +197,133 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 	}
 }
 
+// Proxies client requests to their original destination
+func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, error) {
+	if err := r.Context().Err(); err != nil {
+		return nil, err
+	}
+
+	switch {
+	case rec.opts.Mode == ModeReplayOnly:
+		return rec.cassette.GetInteraction(r)
+	case rec.opts.Mode == ModeReplayWithNewEpisodes:
+		interaction, err := rec.cassette.GetInteraction(r)
+		if err == nil {
+			// Interaction found, return it
+			return interaction, nil
+		} else if err == cassette.ErrInteractionNotFound {
+			// Interaction not found, we have a new episode
+			break
+		} else {
+			// Any other error is an error
+			return nil, err
+		}
+	case rec.opts.Mode == ModeRecordOnce && !rec.cassette.IsNew:
+		// We've got an existing cassette, return what we've got
+		return rec.cassette.GetInteraction(r)
+	default:
+		// Applies to ModeRecordOnly, ModePassthrough and
+		// ModeRecordOnce with new cassettes.
+		break
+	}
+
+	// Copy the original request, so we can read the form values
+	reqBytes, err := httputil.DumpRequestOut(r, true)
+	if err != nil {
+		return nil, err
+	}
+
+	reqBuffer := bytes.NewBuffer(reqBytes)
+	copiedReq, err := http.ReadRequest(bufio.NewReader(reqBuffer))
+	if err != nil {
+		return nil, err
+	}
+
+	err = copiedReq.ParseForm()
+	if err != nil {
+		return nil, err
+	}
+
+	reqBody := &bytes.Buffer{}
+	if r.Body != nil && r.Body != http.NoBody {
+		// Record the request body so we can add it to the cassette
+		r.Body = io.NopCloser(io.TeeReader(r.Body, reqBody))
+	}
+
+	// Perform request to it's original destination and record the interactions
+	var start time.Time
+	start = time.Now()
+	resp, err := rec.opts.RealTransport.RoundTrip(r)
+	if err != nil {
+		return nil, err
+	}
+	requestDuration := time.Since(start)
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add interaction to the cassette
+	interaction := &cassette.Interaction{
+		Request: cassette.Request{
+			Proto:            r.Proto,
+			ProtoMajor:       r.ProtoMajor,
+			ProtoMinor:       r.ProtoMinor,
+			ContentLength:    r.ContentLength,
+			TransferEncoding: r.TransferEncoding,
+			Trailer:          r.Trailer,
+			Host:             r.Host,
+			RemoteAddr:       r.RemoteAddr,
+			RemoteURI:        r.RemoteURI,
+			Body:             reqBody.String(),
+			Form:             copiedReq.PostForm,
+			Headers:          r.Header,
+			URL:              r.URL.String(),
+			Method:           r.Method,
+		},
+		Response: cassette.Response{
+			Status:           resp.Status,
+			Code:             resp.StatusCode,
+			Proto:            resp.Proto,
+			ProtoMajor:       resp.ProtoMajor,
+			ProtoMinor:       resp.ProtoMinor,
+			TransferEncoding: resp.TransferEncoding,
+			Trailer:          resp.Trailer,
+			ContentLength:    resp.ContentLength,
+			Uncompressed:     resp.Uncompressed,
+			Body:             string(respBody),
+			Headers:          resp.Header,
+			Duration:         requestDuration,
+		},
+	}
+
+	for _, filter := range rec.cassette.Filters {
+		err = filter(interaction)
+		if err != nil {
+			return nil, err
+		}
+	}
+	c.AddInteraction(interaction)
+
+	return interaction, nil
+}
+
 // Stop is used to stop the recorder and save any recorded
 // interactions if running in one of the recording modes. When
 // running in ModePassthrough no cassette will be saved on disk.
-func (r *Recorder) Stop() error {
-	cassetteFile := r.cassette.File
+func (rec *Recorder) Stop() error {
+	cassetteFile := rec.cassette.File
 	_, err := os.Stat(cassetteFile)
 	cassetteExists := !os.IsNotExist(err)
 
 	switch {
-	case r.opts.Mode == ModeRecordOnly || r.opts.Mode == ModeReplayWithNewEpisodes:
+	case rec.opts.Mode == ModeRecordOnly || rec.opts.Mode == ModeReplayWithNewEpisodes:
 		return r.cassette.Save()
-	case r.opts.Mode == ModeReplayOnly || r.opts.Mode == ModePassthrough:
+	case rec.opts.Mode == ModeReplayOnly || rec.opts.Mode == ModePassthrough:
 		return nil
-	case r.opts.Mode == ModeRecordOnce && !cassetteExists:
+	case rec.opts.Mode == ModeRecordOnce && !cassetteExists:
 		return r.cassette.Save()
 	default:
 		return nil
@@ -325,25 +332,25 @@ func (r *Recorder) Stop() error {
 
 // SetRealTransport can be used to configure the real HTTP transport
 // of the recorder.
-func (r *Recorder) SetRealTransport(t http.RoundTripper) {
-	r.opts.RealTransport = t
+func (rec *Recorder) SetRealTransport(t http.RoundTripper) {
+	rec.opts.RealTransport = t
 }
 
 // RoundTrip implements the http.RoundTripper interface
-func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Passthrough mode, use real transport
-	if r.opts.Mode == ModePassthrough {
-		return r.opts.RealTransport.RoundTrip(req)
+	if rec.opts.Mode == ModePassthrough {
+		return rec.opts.RealTransport.RoundTrip(req)
 	}
 
 	// Apply passthrough handler functions
-	for _, passthroughFunc := range r.passthroughFuncs {
+	for _, passthroughFunc := range rec.passthroughFuncs {
 		if passthroughFunc(req) {
-			return r.opts.RealTransport.RoundTrip(req)
+			return rec.opts.RealTransport.RoundTrip(req)
 		}
 	}
 
-	interaction, err := r.requestHandler(req)
+	interaction, err := rec.requestHandler(req)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +360,7 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, req.Context().Err()
 	default:
 		// Apply the duration defined in the interaction
-		if !r.SkipRequestLatency {
+		if !rec.SkipRequestLatency {
 			<-time.After(interaction.Response.Duration)
 		}
 
@@ -380,43 +387,43 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // CancelRequest implements the
 // github.com/coreos/etcd/client.CancelableTransport interface
-func (r *Recorder) CancelRequest(req *http.Request) {
+func (rec *Recorder) CancelRequest(req *http.Request) {
 	type cancelableTransport interface {
 		CancelRequest(req *http.Request)
 	}
-	if ct, ok := r.realTransport.(cancelableTransport); ok {
+	if ct, ok := rec.opts.RealTransport.(cancelableTransport); ok {
 		ct.CancelRequest(req)
 	}
 }
 
 // SetMatcher sets a function to match requests against recorded HTTP
 // interactions.
-func (r *Recorder) SetMatcher(matcher cassette.Matcher) {
-	if r.cassette != nil {
-		r.cassette.Matcher = matcher
+func (rec *Recorder) SetMatcher(matcher cassette.Matcher) {
+	if rec.cassette != nil {
+		rec.cassette.Matcher = matcher
 	}
 }
 
 // SetReplayableInteractions defines whether to allow interactions to
 // be replayed or not.
-func (r *Recorder) SetReplayableInteractions(replayable bool) {
-	if r.cassette != nil {
-		r.cassette.ReplayableInteractions = replayable
+func (rec *Recorder) SetReplayableInteractions(replayable bool) {
+	if rec.cassette != nil {
+		rec.cassette.ReplayableInteractions = replayable
 	}
 }
 
 // AddPassthrough appends a hook to determine if a request should be
 // ignored by the recorder.
-func (r *Recorder) AddPassthrough(pass Passthrough) {
-	r.Passthroughs = append(r.Passthroughs, pass)
+func (rec *Recorder) AddPassthrough(pass Passthrough) {
+	rec.Passthroughs = append(rec.Passthroughs, pass)
 }
 
 // AddFilter appends a hook to modify a request before it is recorded.
 //
 // Filters are useful for filtering out sensitive parameters from the recorded data.
-func (r *Recorder) AddFilter(filter cassette.Filter) {
-	if r.cassette != nil {
-		r.cassette.Filters = append(r.cassette.Filters, filter)
+func (rec *Recorder) AddFilter(filter cassette.Filter) {
+	if rec.cassette != nil {
+		rec.cassette.Filters = append(rec.cassette.Filters, filter)
 	}
 }
 
@@ -424,13 +431,13 @@ func (r *Recorder) AddFilter(filter cassette.Filter) {
 //
 // This filter is suitable for treating recorded responses to remove sensitive data. Altering responses using a regular
 // AddFilter can have unintended consequences on code that is consuming responses.
-func (r *Recorder) AddSaveFilter(filter cassette.Filter) {
-	if r.cassette != nil {
-		r.cassette.SaveFilters = append(r.cassette.SaveFilters, filter)
+func (rec *Recorder) AddSaveFilter(filter cassette.Filter) {
+	if rec.cassette != nil {
+		rec.cassette.SaveFilters = append(rec.cassette.SaveFilters, filter)
 	}
 }
 
 // Mode returns recorder state
-func (r *Recorder) Mode() Mode {
-	return r.mode
+func (rec *Recorder) Mode() Mode {
+	return rec.opts.Mode
 }
