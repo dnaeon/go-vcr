@@ -16,7 +16,7 @@ and accurate testing of your code.
 Install `go-vcr` by executing the command below:
 
 ```bash
-$ go get -v gopkg.in/dnaeon/go-vcr.v2/recorder
+$ go get -v gopkg.in/dnaeon/go-vcr.v3/recorder
 ```
 
 ## Usage
@@ -34,7 +34,7 @@ import (
 	"log"
 	"time"
 
-	"gopkg.in/dnaeon/go-vcr.v2/recorder"
+	"gopkg.in/dnaeon/go-vcr.v3/recorder"
 
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
@@ -147,7 +147,7 @@ r.AddSaveFilter(func(i *cassette.Interaction) error {
 
     return nil
 })
-```    
+```
 
 ## Passing Through Requests
 
