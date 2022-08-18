@@ -87,13 +87,13 @@ var ErrInvalidMode = errors.New("invalid recorder mode")
 
 // FilterFunc represents a function, which allows modification of an
 // interaction before being added to the cassette
-type FilterFunc func(*cassette.Interaction) error
+type FilterFunc func(i *cassette.Interaction) error
 
 // PassthroughFunc is handler which determines whether a specific HTTP
 // request is to be forwarded to the original endpoint. It should
 // return true when a request needs to be passed through, and false
 // otherwise.
-type PassthroughFunc func(*http.Request) bool
+type PassthroughFunc func(req *http.Request) bool
 
 // Option represents the Recorder options
 type Options struct {
@@ -125,7 +125,7 @@ type Recorder struct {
 	options *Options
 
 	// Passthrough handlers
-	passthroughFuncs []PassthroughFunc
+	passthroughs []PassthroughFunc
 
 	// filters is a set of FilterFunc handlers, which are invoked
 	// before the interaction is added to the cassette. The
@@ -161,10 +161,10 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 	}
 
 	rec := &Recorder{
-		options:          opts,
-		passthroughFuncs: make([]PassthroughFunc, 0),
-		filters:          make([]FilterFunc, 0),
-		preSaveFilters:   make([]FilterFunc, 0),
+		options:        opts,
+		passthroughs:   make([]PassthroughFunc, 0),
+		filters:        make([]FilterFunc, 0),
+		preSaveFilters: make([]FilterFunc, 0),
 	}
 
 	cassetteFile := cassette.New(opts.CassetteName).File
@@ -377,7 +377,7 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	// Apply passthrough handler functions
-	for _, passthroughFunc := range rec.passthroughFuncs {
+	for _, passthroughFunc := range rec.passthroughs {
 		if passthroughFunc(req) {
 			return rec.options.RealTransport.RoundTrip(req)
 		}
@@ -427,7 +427,7 @@ func (rec *Recorder) SetReplayableInteractions(replayable bool) {
 // AddPassthrough appends a hook to determine if a request should be
 // ignored by the recorder.
 func (rec *Recorder) AddPassthrough(pass PassthroughFunc) {
-	rec.passthroughFuncs = append(rec.passthroughFuncs, pass)
+	rec.passthroughs = append(rec.passthroughs, pass)
 }
 
 // AddFilter appends a hook to modify an interaction before it is
