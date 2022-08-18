@@ -118,15 +118,15 @@ type Response struct {
 
 	// Response duration (something like "100ms" or "10s")
 	Duration time.Duration `yaml:"duration"`
-
-	replayed bool
 }
 
 // Interaction type contains a pair of request/response for a
 // single HTTP interaction between a client and a server
 type Interaction struct {
-	Request  `yaml:"request"`
-	Response `yaml:"response"`
+	ID       int      `yaml:"id"`
+	Request  Request  `yaml:"request"`
+	Response Response `yaml:"response"`
+	replayed bool     `yaml:"-"`
 }
 
 // GetHTTPRequest converts the recorded interaction request to
@@ -225,6 +225,8 @@ type Cassette struct {
 	// Returns false, when the cassette was loaded from an
 	// existing source, e.g. a file.
 	IsNew bool `yaml:"-"`
+
+	nextInteractionId int `yaml:"-"`
 }
 
 // New creates a new empty cassette
@@ -237,6 +239,7 @@ func New(name string) *Cassette {
 		Matcher:                DefaultMatcher,
 		ReplayableInteractions: false,
 		IsNew:                  true,
+		nextInteractionId:      0,
 	}
 
 	return c
@@ -258,6 +261,7 @@ func Load(name string) (*Cassette, error) {
 	if c.Version != CassetteFormatV2 {
 		return nil, ErrUnsupportedCassetteFormat
 	}
+	c.nextInteractionId = len(c.Interactions)
 
 	return c, err
 }
@@ -266,6 +270,8 @@ func Load(name string) (*Cassette, error) {
 func (c *Cassette) AddInteraction(i *Interaction) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+	i.ID = c.nextInteractionId
+	c.nextInteractionId += 1
 	c.Interactions = append(c.Interactions, i)
 }
 
