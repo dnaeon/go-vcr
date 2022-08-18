@@ -1,7 +1,8 @@
 ---
 version: 2
 interactions:
-    - request:
+    - id: 0
+      request:
         proto: HTTP/1.1
         proto_major: 1
         proto_minor: 1
@@ -31,17 +32,18 @@ interactions:
             Content-Type:
                 - text/html
             Date:
-                - Thu, 18 Aug 2022 18:02:06 GMT
+                - Thu, 18 Aug 2022 19:51:11 GMT
             Location:
                 - https://golang.org/
             Server:
                 - Google Frontend
             X-Cloud-Trace-Context:
-                - ae9613ae433bfd37c50e618dba460e81
+                - 5ba35a45eff0fbe9484880addf499b45
         status: 302 Found
         code: 302
-        duration: 216.821385ms
-    - request:
+        duration: 172.178051ms
+    - id: 1
+      request:
         proto: ""
         proto_major: 0
         proto_minor: 0
@@ -79,7 +81,7 @@ interactions:
             Content-Type:
                 - text/html; charset=utf-8
             Date:
-                - Thu, 18 Aug 2022 18:02:07 GMT
+                - Thu, 18 Aug 2022 19:51:11 GMT
             Location:
                 - https://go.dev/
             Server:
@@ -87,11 +89,12 @@ interactions:
             Strict-Transport-Security:
                 - max-age=31536000; includeSubDomains; preload
             X-Cloud-Trace-Context:
-                - f9f3ae204bea59a8231a7e750a2689f1
+                - 9dd09d299db6a711e999e4a6a7117372
         status: 301 Moved Permanently
         code: 301
-        duration: 220.504423ms
-    - request:
+        duration: 221.932716ms
+    - id: 2
+      request:
         proto: ""
         proto_major: 0
         proto_minor: 0
@@ -125,7 +128,7 @@ interactions:
             Content-Type:
                 - text/html; charset=utf-8
             Date:
-                - Thu, 18 Aug 2022 18:02:07 GMT
+                - Thu, 18 Aug 2022 19:51:12 GMT
             Server:
                 - Google Frontend
             Strict-Transport-Security:
@@ -133,7 +136,7 @@ interactions:
             Vary:
                 - Accept-Encoding
             X-Cloud-Trace-Context:
-                - 1a74e53163cc79bd1aed5dbd5561b7e4
+                - 2286c37f71d8e4f86a3f8d7178de293b
         status: 200 OK
         code: 200
-        duration: 273.422592ms
+        duration: 236.06554ms
