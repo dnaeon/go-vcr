@@ -57,6 +57,11 @@ var (
 	// ErrCassetteNotFound indicates that a requested
 	// casette doesn't exist (only in Replaying mode)
 	ErrCassetteNotFound = errors.New("requested cassette not found")
+
+	// ErrUnsupportedCassetteFormat is returned when attempting to
+	// use an older and potentially unsupported format of a
+	// cassette
+	ErrUnsupportedCassetteFormat = fmt.Errorf("unsupported cassette format, min required version is v%d", CassetteFormatV2)
 )
 
 // Request represents a client request as recorded in the
@@ -248,7 +253,6 @@ func New(name string) *Cassette {
 }
 
 // Load reads a cassette file from disk
-// TODO: v1 is not supported
 func Load(name string) (*Cassette, error) {
 	c := New(name)
 	data, err := ioutil.ReadFile(c.File)
@@ -257,7 +261,13 @@ func Load(name string) (*Cassette, error) {
 	}
 
 	c.IsNew = false
-	err = yaml.Unmarshal(data, &c)
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		return nil, err
+	}
+
+	if c.Version < CassetteFormatV2 {
+		return nil, ErrUnsupportedCassetteFormat
+	}
 
 	return c, err
 }
