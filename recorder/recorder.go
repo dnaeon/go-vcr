@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2015-2022 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // Copyright (c) 2016 David Jack <davars@gmail.com>
 // All rights reserved.
 //
@@ -143,7 +143,6 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 	}
 
 	rec := &Recorder{
-		cassette:         nil,
 		options:          opts,
 		passthroughFuncs: make([]PassthroughFunc, 0),
 	}
@@ -382,17 +381,13 @@ func (rec *Recorder) CancelRequest(req *http.Request) {
 // SetMatcher sets a function to match requests against recorded HTTP
 // interactions.
 func (rec *Recorder) SetMatcher(matcher cassette.Matcher) {
-	if rec.cassette != nil {
-		rec.cassette.Matcher = matcher
-	}
+	rec.cassette.Matcher = matcher
 }
 
 // SetReplayableInteractions defines whether to allow interactions to
 // be replayed or not.
 func (rec *Recorder) SetReplayableInteractions(replayable bool) {
-	if rec.cassette != nil {
-		rec.cassette.ReplayableInteractions = replayable
-	}
+	rec.cassette.ReplayableInteractions = replayable
 }
 
 // AddPassthrough appends a hook to determine if a request should be
@@ -405,9 +400,7 @@ func (rec *Recorder) AddPassthrough(pass PassthroughFunc) {
 //
 // Filters are useful for filtering out sensitive parameters from the recorded data.
 func (rec *Recorder) AddFilter(filter cassette.Filter) {
-	if rec.cassette != nil {
-		rec.cassette.Filters = append(rec.cassette.Filters, filter)
-	}
+	rec.cassette.Filters = append(rec.cassette.Filters, filter)
 }
 
 // AddSaveFilter appends a hook to modify a request before it is saved.
@@ -415,9 +408,7 @@ func (rec *Recorder) AddFilter(filter cassette.Filter) {
 // This filter is suitable for treating recorded responses to remove sensitive data. Altering responses using a regular
 // AddFilter can have unintended consequences on code that is consuming responses.
 func (rec *Recorder) AddSaveFilter(filter cassette.Filter) {
-	if rec.cassette != nil {
-		rec.cassette.SaveFilters = append(rec.cassette.SaveFilters, filter)
-	}
+	rec.cassette.SaveFilters = append(rec.cassette.SaveFilters, filter)
 }
 
 // Mode returns recorder state
