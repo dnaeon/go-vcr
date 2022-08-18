@@ -29,7 +29,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -241,7 +240,7 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 		passthroughFuncs: make([]PassthroughFunc, 0),
 	}
 
-	cassetteFile := fmt.Sprintf("%s.yaml", opts.CassetteName)
+	cassetteFile := cassette.New(opts.CassetteName).File
 	_, err := os.Stat(cassetteFile)
 	cassetteExists := !os.IsNotExist(err)
 
@@ -290,21 +289,30 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 	}
 }
 
+// Stop is used to stop the recorder and save any recorded
+// interactions if running in one of the recording modes. When
+// running in ModePassthrough no cassette will be saved on disk.
+func (r *Recorder) Stop() error {
+	cassetteFile := r.cassette.File
+	_, err := os.Stat(cassetteFile)
+	cassetteExists := !os.IsNotExist(err)
+
+	switch {
+	case r.opts.Mode == ModeRecordOnly || r.opts.Mode == ModeReplayWithNewEpisodes:
+		return r.cassette.Save()
+	case r.opts.Mode == ModeReplayOnly || r.opts.Mode == ModePassthrough:
+		return nil
+	case r.opts.Mode == ModeRecordOnce && !cassetteExists:
+		return r.cassette.Save()
+	default:
+		return nil
+	}
+}
+
 // SetRealTransport can be used to configure the real HTTP transport
 // of the recorder.
 func (r *Recorder) SetRealTransport(t http.RoundTripper) {
 	r.opts.RealTransport = t
-}
-
-// Stop is used to stop the recorder and save any recorded interactions
-func (r *Recorder) Stop() error {
-	if r.mode == ModeRecording || r.mode == ModeReplayingOrRecording {
-		if err := r.cassette.Save(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // RoundTrip implements the http.RoundTripper interface
