@@ -184,12 +184,11 @@ func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
 	return resp, nil
 }
 
-// Matcher function returns true when the actual request matches
-// a single HTTP interaction's request according to the function's
-// own criteria.
-type Matcher func(*http.Request, Request) bool
+// MatcherFunc function returns true when the actual request matches a
+// single HTTP interaction's request according to the function's own
+// criteria.
+type MatcherFunc func(*http.Request, Request) bool
 
-// TODO: Pass two requests here
 // DefaultMatcher is used when a custom matcher is not defined and
 // compares only the method and of the HTTP request.
 func DefaultMatcher(r *http.Request, i Request) bool {
@@ -219,7 +218,7 @@ type Cassette struct {
 	ReplayableInteractions bool `yaml:"-"`
 
 	// Matches actual request with interaction requests.
-	Matcher Matcher `yaml:"-"`
+	Matcher MatcherFunc `yaml:"-"`
 
 	// IsNew specifies whether this is a newly created cassette.
 	// Returns false, when the cassette was loaded from an
