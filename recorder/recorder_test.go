@@ -849,3 +849,134 @@ func TestReplayableInteractions(t *testing.T) {
 		t.Fatalf("expected 1 recorded interaction, got %d", total)
 	}
 }
+
+func TestWithCustomMatcher(t *testing.T) {
+	// Setup test cases with same method and API path, but with
+	// different bodies.
+	tests := []testCase{
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/foo", // Same endpoint
+		},
+		{
+			method:            http.MethodPost,
+			body:              "bar",
+			wantBody:          "POST go-vcr\nbar",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/foo", // Same endpoint
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("test_with_custom_matcher")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecordOnce {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	// Run tests first in RecordOnce mode, so we capture the
+	// interactions
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Stop recorder and server, then re-run tests in ReplayOnly
+	// mode. During this test we expect that the default matcher
+	// will fail for the requests with same method and API path,
+	// since it does not match on the request body. It will always
+	// return the body of the first recorded interaction for the
+	// same endpoint.
+	server.Close()
+	rec.Stop()
+
+	opts := &recorder.Options{
+		CassetteName: cassPath,
+		Mode:         recorder.ModeReplayOnly,
+	}
+	rec, err = recorder.NewWithOptions(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
+
+	if rec.Mode() != recorder.ModeReplayOnly {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	// Set replayable interactions to true, so that we can match
+	// against the already recorded interactions.
+	rec.SetReplayableInteractions(true)
+
+	// All requests which hit the same URL and use the same method
+	// will match against the first recorded interaction.
+	client = rec.GetDefaultClient()
+	url := fmt.Sprintf("%s%s", serverUrl, "/api/v1/foo") // Same URL as the test cases
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("any body will match"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	// Body should be the same as the first recorded interaction
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantBody := tests[0].wantBody
+	if string(respBody) != wantBody {
+		t.Fatalf("got body: %q, want body: %q", string(respBody), wantBody)
+	}
+
+	// Now configure our custom matcher, which should match
+	// against the body as well
+	customMatcher := func(r *http.Request, i cassette.Request) bool {
+		if r.Body == nil || r.Body == http.NoBody {
+			return cassette.DefaultMatcher(r, i)
+		}
+
+		var reqBody []byte
+		var err error
+		reqBody, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal("failed to read request body")
+		}
+		r.Body.Close()
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+
+		return r.Method == i.Method && r.URL.String() == i.URL && string(reqBody) == i.Body
+	}
+
+	// Re-running same tests should complete fine this time when
+	// using the custom matcher.
+	rec.SetMatcher(customMatcher)
+
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
