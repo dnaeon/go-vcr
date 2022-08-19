@@ -13,4 +13,6 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
     - uses: actions/checkout@v3
-    - run: make test
+    - run: make test_cover
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
