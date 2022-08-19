@@ -1,0 +1,16 @@
+# .github/workflows/test.yaml
+on: [push, pull_request]
+name: test
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [1.18.x, 1.19.x]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/setup-go@v3
+      with:
+        go-version: ${{ matrix.go-version }}
+    - uses: actions/checkout@v3
+    - run: make test
