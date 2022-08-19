@@ -433,7 +433,7 @@ func (rec *Recorder) CancelRequest(req *http.Request) {
 
 // SetMatcher sets a function to match requests against recorded HTTP
 // interactions.
-func (rec *Recorder) SetMatcher(matcher cassette.Matcher) {
+func (rec *Recorder) SetMatcher(matcher cassette.MatcherFunc) {
 	rec.cassette.Matcher = matcher
 }
 
