@@ -478,3 +478,33 @@ func (rec *Recorder) GetDefaultClient() *http.Client {
 
 	return client
 }
+
+// IsNewCassette returns true, if the recorder was started with a
+// new/empty cassette. Returns false, if it was started using an
+// existing cassette, which was loaded.
+func (rec *Recorder) IsNewCassette() bool {
+	return rec.cassette.IsNew
+}
+
+// IsRecording returns true, if the recorder is recording
+// interactions, returns false otherwise. Note, that in some modes
+// (e.g. ModeReplayWithNewEpisodes and ModeRecordOnce) the recorder
+// might be recording new interactions. For example in ModeRecordOnce,
+// we are replaying interactions only if there was an existing
+// cassette, and we are recording it, if the cassette is a new one.
+// ModeReplayWithNewEpisodes would replay interactions, if they are
+// present in the cassette, but will also record new ones, if they are
+// not part of the cassette already. In these cases the recorder is
+// considered to be recording for these modes.
+func (rec *Recorder) IsRecording() bool {
+	switch {
+	case rec.options.Mode == ModeRecordOnly || rec.options.Mode == ModeReplayWithNewEpisodes:
+		return true
+	case rec.options.Mode == ModeReplayOnly || rec.options.Mode == ModePassthrough:
+		return false
+	case rec.options.Mode == ModeRecordOnce && rec.IsNewCassette():
+		return true
+	default:
+		return false
+	}
+}

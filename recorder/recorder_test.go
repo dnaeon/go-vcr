@@ -164,6 +164,14 @@ func TestRecordOnlyMode(t *testing.T) {
 		t.Fatal("recorder is not in the correct mode")
 	}
 
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
+	if !rec.IsNewCassette() {
+		t.Fatal("recorder is not using a new cassette")
+	}
+
 	// Run tests
 	ctx := context.Background()
 	client := rec.GetDefaultClient()
@@ -254,6 +262,10 @@ func TestReplayWithContextTimeout(t *testing.T) {
 		t.Fatal("recorder is not in the correct mode")
 	}
 
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
 	tests := []testCase{
 		{
 			method:            http.MethodGet,
@@ -292,6 +304,11 @@ func TestReplayWithContextTimeout(t *testing.T) {
 
 	if rec.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("recorder is not in the correct mode")
+	}
+
+	// This time the recording should only be replaying
+	if rec.IsRecording() != false {
+		t.Fatal("recorder should not be recording")
 	}
 
 	defer rec.Stop()
@@ -340,6 +357,10 @@ func TestRecordOnceWithMissingEpisodes(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
 	if rec.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("recorder is not in the correct mode")
 	}
@@ -365,6 +386,10 @@ func TestRecordOnceWithMissingEpisodes(t *testing.T) {
 
 	if rec.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != false {
+		t.Fatal("recorder should not be recording")
 	}
 
 	newTests := []testCase{
@@ -434,6 +459,10 @@ func TestReplayWithNewEpisodes(t *testing.T) {
 	rec, err := recorder.NewWithOptions(opts)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
 	}
 
 	if rec.Mode() != recorder.ModeReplayWithNewEpisodes {
@@ -522,6 +551,7 @@ func TestPassthroughMode(t *testing.T) {
 
 	server := newEchoHttpServer()
 	serverUrl := server.URL
+	defer server.Close()
 
 	cassPath, err := newCassettePath("test_passthrough_mode")
 	if err != nil {
@@ -536,10 +566,13 @@ func TestPassthroughMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
 
 	if m := rec.Mode(); m != recorder.ModePassthrough {
 		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != false {
+		t.Fatal("recorder should not be recording")
 	}
 
 	// Run tests
@@ -600,6 +633,10 @@ func TestPassthroughHandler(t *testing.T) {
 
 	if rec.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
 	}
 
 	// Add a passthrough handler which does not record any
@@ -687,6 +724,10 @@ func TestFilter(t *testing.T) {
 		t.Fatal("recorder is not in the correct mode")
 	}
 
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
 	// Add a filter which replaces each request body in the stored
 	// cassette:
 	dummyBody := "[REDACTED]"
@@ -759,6 +800,10 @@ func TestPreSaveFilter(t *testing.T) {
 		t.Fatal("recorder is not in the correct mode")
 	}
 
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
 	// Add a save filter which replaces each request body in the stored cassette
 	dummyBody := "[REDACTED]"
 	rec.AddPreSaveFilter(func(i *cassette.Interaction) error {
@@ -822,6 +867,10 @@ func TestReplayableInteractions(t *testing.T) {
 
 	if rec.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
 	}
 
 	// Configure replayable interactions
@@ -889,6 +938,10 @@ func TestWithCustomMatcher(t *testing.T) {
 		t.Fatal("recorder is not in the correct mode")
 	}
 
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
 	// Run tests first in RecordOnce mode, so we capture the
 	// interactions
 	ctx := context.Background()
@@ -920,6 +973,10 @@ func TestWithCustomMatcher(t *testing.T) {
 
 	if rec.Mode() != recorder.ModeReplayOnly {
 		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != false {
+		t.Fatal("recorder should not be recording")
 	}
 
 	// Set replayable interactions to true, so that we can match
