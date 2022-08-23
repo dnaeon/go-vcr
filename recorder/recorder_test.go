@@ -112,7 +112,7 @@ func newCassettePath(name string) (string, error) {
 	return cassPath, nil
 }
 
-func TestRecordOnlyMode(t *testing.T) {
+func TestRecordOnceMode(t *testing.T) {
 	// Set things up
 	tests := []testCase{
 		{
@@ -1149,5 +1149,79 @@ func TestWithCustomMatcher(t *testing.T) {
 		if err := test.run(client, ctx, serverUrl); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestRecordOnlyMode(t *testing.T) {
+	// Set things up
+	tests := []testCase{
+		{
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/baz",
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+	defer server.Close()
+
+	cassPath, err := newCassettePath("test_record_only")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	opts := &recorder.Options{
+		CassetteName: cassPath,
+		Mode:         recorder.ModeRecordOnly,
+	}
+	rec, err := recorder.NewWithOptions(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
+
+	if rec.Mode() != recorder.ModeRecordOnly {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
+	if !rec.IsNewCassette() {
+		t.Fatal("recorder is not using a new cassette")
+	}
+
+	// Run tests
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestInvalidRecorderMode(t *testing.T) {
+	// Create recorder
+	opts := &recorder.Options{
+		CassetteName: "invalid_recorder_mode",
+		Mode:         recorder.Mode(-42),
+	}
+	_, err := recorder.NewWithOptions(opts)
+	if err != recorder.ErrInvalidMode {
+		t.Fatal("expected recorder to fail with invalid mode")
 	}
 }
