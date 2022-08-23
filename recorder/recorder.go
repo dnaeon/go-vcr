@@ -85,9 +85,54 @@ const (
 // with invalid mode
 var ErrInvalidMode = errors.New("invalid recorder mode")
 
-// FilterFunc represents a function, which allows modification of an
-// interaction before being added to the cassette
-type FilterFunc func(i *cassette.Interaction) error
+// HookFunc represents a function, which will be invoked in different
+// stages of the playback. The hook functions allow for plugging in to
+// the playback and transform an interaction, if needed. For example a
+// hook function might redact or remove sensitive data from a
+// request/response before it is added to the in-memory cassette, or
+// before it is saved on disk.  Another use case would be to transform
+// the HTTP response before it is returned to the client during replay
+// mode.
+type HookFunc func(i *cassette.Interaction) error
+
+// Hook kinds
+type HookKind int
+
+const (
+	// AfterCaptureHook represents a hook, which will be invoked
+	// after capturing a request/response pair.
+	AfterCaptureHook HookKind = iota
+
+	// BeforeSaveHook represents a hook, which will be invoked
+	// right before the cassette is saved on disk.
+	BeforeSaveHook
+
+	// BeforeResponseReplayHook represents a hook, which will be
+	// invoked before replaying a previously recorded response to
+	// the client.
+	BeforeResponseReplayHook
+)
+
+// Hook represents a function hook of a given kind. Depending on the
+// hook kind, the function will be invoked in different stages of the
+// playback.
+type Hook struct {
+	// Handler is the function which will be invoked
+	Handler HookFunc
+
+	// Kind represents the hook kind
+	Kind HookKind
+}
+
+// NewHook creates a new hook
+func NewHook(handler HookFunc, kind HookKind) *Hook {
+	hook := &Hook{
+		Handler: handler,
+		Kind:    kind,
+	}
+
+	return hook
+}
 
 // PassthroughFunc is handler which determines whether a specific HTTP
 // request is to be forwarded to the original endpoint. It should
@@ -127,19 +172,9 @@ type Recorder struct {
 	// Passthrough handlers
 	passthroughs []PassthroughFunc
 
-	// filters is a set of FilterFunc handlers, which are invoked
-	// before the interaction is added to the cassette. The
-	// interaction is still in-memory and not persisted on
-	// disk. These filters are different than the PreSaveFilters,
-	// which are invoked right before persisting the cassette on
-	// disk.
-	filters []FilterFunc
-
-	// preSaveFilters are applied to interactions just before they
-	// are saved on disk. These are different than the Filters,
-	// which are usually applied to the interactions before they
-	// are added to the cassette, which is still in-memory.
-	preSaveFilters []FilterFunc
+	// hooks is a list of hooks, which are invoked in different
+	// stages of the playback.
+	hooks []*Hook
 }
 
 // New creates a new recorder
@@ -161,10 +196,9 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 	}
 
 	rec := &Recorder{
-		options:        opts,
-		passthroughs:   make([]PassthroughFunc, 0),
-		filters:        make([]FilterFunc, 0),
-		preSaveFilters: make([]FilterFunc, 0),
+		options:      opts,
+		passthroughs: make([]PassthroughFunc, 0),
+		hooks:        make([]*Hook, 0),
 	}
 
 	cassetteFile := cassette.New(opts.CassetteName).File
@@ -335,12 +369,10 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 		},
 	}
 
-	// Apply filters before adding them to the in-memory cassette
-	for _, filter := range rec.filters {
-		err = filter(interaction)
-		if err != nil {
-			return nil, err
-		}
+	// Apply after-capture hooks before we add the interaction to
+	// the in-memory cassette.
+	if err := rec.applyHooks(interaction, AfterCaptureHook); err != nil {
+		return nil, err
 	}
 
 	rec.cassette.AddInteraction(interaction)
@@ -370,16 +402,28 @@ func (rec *Recorder) Stop() error {
 
 // persisteCassette persists the cassette on disk for future re-use
 func (rec *Recorder) persistCassette() error {
-	// Apply any pre-save filters
+	// Apply any before-save hooks
 	for _, interaction := range rec.cassette.Interactions {
-		for _, filter := range rec.preSaveFilters {
-			if err := filter(interaction); err != nil {
+		if err := rec.applyHooks(interaction, BeforeSaveHook); err != nil {
+			return err
+		}
+	}
+
+	return rec.cassette.Save()
+}
+
+// applyHooks applies the registered hooks of the given kind with the
+// specified interaction
+func (rec *Recorder) applyHooks(i *cassette.Interaction, kind HookKind) error {
+	for _, hook := range rec.hooks {
+		if hook.Kind == kind {
+			if err := hook.Handler(i); err != nil {
 				return err
 			}
 		}
 	}
 
-	return rec.cassette.Save()
+	return nil
 }
 
 // SetRealTransport can be used to configure the real HTTP transport
@@ -451,17 +495,11 @@ func (rec *Recorder) AddPassthrough(pass PassthroughFunc) {
 	rec.passthroughs = append(rec.passthroughs, pass)
 }
 
-// AddFilter appends a hook to modify an interaction before it is
-// added to the cassette.  Note, that the cassette is not yet saved on
-// disk, but the interaction is only added to the in-memory cassette.
-func (rec *Recorder) AddFilter(filter FilterFunc) {
-	rec.filters = append(rec.filters, filter)
-}
-
-// AddPreSaveFilter appends a hook to modify an interaction just
-// before the cassette is saved on disk.
-func (rec *Recorder) AddPreSaveFilter(filter FilterFunc) {
-	rec.preSaveFilters = append(rec.preSaveFilters, filter)
+// AddHook appends a hook to the recorder. Depending on the hook kind,
+// the handler will be invoked in different stages of the playback.
+func (rec *Recorder) AddHook(handler HookFunc, kind HookKind) {
+	hook := NewHook(handler, kind)
+	rec.hooks = append(rec.hooks, hook)
 }
 
 // Mode returns recorder state
