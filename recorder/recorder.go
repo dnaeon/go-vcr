@@ -451,6 +451,11 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
+	// Apply before-response-replay hooks
+	if err := rec.applyHooks(interaction, BeforeResponseReplayHook); err != nil {
+		return nil, err
+	}
+
 	select {
 	case <-req.Context().Done():
 		return nil, req.Context().Err()
