@@ -729,14 +729,15 @@ func TestFilter(t *testing.T) {
 	}
 
 	// Add a filter which replaces each request body in the stored
-	// cassette:
+	// cassette
 	dummyBody := "[REDACTED]"
-	rec.AddFilter(func(i *cassette.Interaction) error {
+	redactHook := func(i *cassette.Interaction) error {
 		if i.Request.Method == http.MethodPost && i.Request.Body == "foo" {
 			i.Request.Body = dummyBody
 		}
 		return nil
-	})
+	}
+	rec.AddHook(redactHook, recorder.AfterCaptureHook)
 
 	// Run tests
 	ctx := context.Background()
@@ -806,12 +807,13 @@ func TestPreSaveFilter(t *testing.T) {
 
 	// Add a save filter which replaces each request body in the stored cassette
 	dummyBody := "[REDACTED]"
-	rec.AddPreSaveFilter(func(i *cassette.Interaction) error {
+	redactHook := func(i *cassette.Interaction) error {
 		if i.Request.Method == http.MethodPost && i.Request.Body == "foo" {
 			i.Request.Body = dummyBody
 		}
 		return nil
-	})
+	}
+	rec.AddHook(redactHook, recorder.BeforeSaveHook)
 
 	// Run tests
 	ctx := context.Background()

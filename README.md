@@ -76,7 +76,15 @@ func recorderWithCustomMatcher() {
 }
 ```
 
-## Protecting Sensitive Data
+## Hooks
+
+Hooks in `go-vcr` are regular functions which take an HTTP interaction
+and are invoked in different stages of the playback.
+
+You can use hooks to modify a request/response before it is saved on
+disk, before it is returned to the client, or anything else that you
+might want to do with it, e.g. you might want to simply log each
+captured interaction.
 
 You often provide sensitive data, such as API credentials, when making
 requests against a service.
@@ -85,10 +93,14 @@ By default, this data will be stored in the recorded data but you
 probably don't want this.
 
 Removing or replacing data before it is stored can be done by adding
-one or more `Filter`s to your `Recorder`.
+one or more `Hook`s to your `Recorder`.
+
+There are different kinds of hooks, which are invoked in different
+stages of the playback. The supported hook kinds are
+`AfterCaptureHook`, `BeforeSaveHook` and `BeforeResponseReplayHook`.
 
 Here is an example that removes the `Authorization` header from all
-requests:
+requests right after capturing a new interaction.
 
 ```go
 r, err := recorder.New("fixtures/filters")
@@ -97,27 +109,28 @@ if err != nil {
 }
 defer r.Stop() // Make sure recorder is stopped once done with it
 
-// Add a filter which removes Authorization headers from all requests:
-r.AddFilter(func(i *cassette.Interaction) error {
-    delete(i.Request.Headers, "Authorization")
-    return nil
-})
+// Add a hook which removes Authorization headers from all requests
+hook := func(i *cassette.Interaction) error {
+	delete(i.Request.Headers, "Authorization")
+	return nil
+}
+r.AddHook(hook, recorder.AfterCaptureHook)
 ```
 
-### Sensitive data in responses 
-
-Filters added using `*Recorder.AddFilter` are applied within VCR's
-custom `http.Transport`. This means that if you edit a response in
-such a filter then subsequent test code will see the edited
-response. This may not be desirable in all cases.
+Hooks added using `recorder.AfterCaptureHook` are applied right after
+an interaction is captured and added to the in-memory cassette. This
+may not always be what you need. For example if you modify an
+interaction using this hook kind then subsequent test code will see
+the edited response.
 
 For instance, if a response body contains an OAuth access token that
-is needed for subsequent requests, then redacting the access token in
-`Filter` will result in authorization failures.
+is needed for subsequent requests, then redacting the access token
+using a `AfterCaptureHook` will result in authorization failures in
+subsequent test code.
 
-Another way to edit recorded interactions is to use
-`PreSaveFilter`. Filters added with this method are applied just
-before interactions are saved when `Recorder.Stop()` is called.
+In such cases you would want to modify the recorded interactions right
+before they are saved on disk. For that purpose you should be using a
+`BeforeSaveHook`, e.g.
 
 ```go
 r, err := recorder.New("fixtures/filters")
@@ -128,13 +141,14 @@ defer r.Stop() // Make sure recorder is stopped once done with it
 
 // Your test code will continue to see the real access token and
 // it is redacted before the recorded interactions are saved on disk
-r.AddSaveFilter(func(i *cassette.Interaction) error {
-    if strings.Contains(i.URL, "/oauth/token") {
-        i.Response.Body = `{"access_token": "[REDACTED]"}`
-    }
+hook := func(i *cassette.Interaction) error {
+	if strings.Contains(i.Request.URL, "/oauth/token") {
+		i.Response.Body = `{"access_token": "[REDACTED]"}`
+	}
 
-    return nil
-})
+	return nil
+}
+r.AddHook(hook, recorder.BeforeSaveHook)
 ```
 
 ## Passing Through Requests
