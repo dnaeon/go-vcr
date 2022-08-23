@@ -1,0 +1,103 @@
+* 2022-08-23
+
+Release =v3.1.0= has been tagged.
+
+**NOTE**: This version contains breaking API change.
+
+Summary of changes since previous release.
+
+- The =recorder.FilterFunc= has been removed. It is now replaced by
+  =recorder.HookFunc= type.
+- The =Recorder.AddFilter()= and =Recorder.AddPreSaveFilter()= methods
+  have been removed. They are now replaced by the =Recorder.AddHook()=
+  method.
+- Added different kinds of hooks supported by the recorder -
+  =AfterCaptureHook=, =BeforeSaveHook= and =BeforeResponseReplayHook=.
+
+* 2022-08-20
+
+Release =v3.0.1= has been tagged.
+
+Minor updates, adding two new utility methods to the recorder, which
+can be used to inspect the state of the recorder and the cassette.
+
+- =IsRecording()=
+- =IsNewCassette()=
+
+See issue #76
+
+* 2022-08-19
+
+=go-vcr v3= has been released and tagged as =v3.0.0=.
+
+**NOTE**: This release is not backwards-compatible with previous
+versions of the cassettes. If you are upgrading to =v3= you should
+re-create your test cassettes.
+
+A summary of changes for this release:
+
+- API has been refactored and cleaned up
+- Custom recorder options are now specified as =recorder.Options=
+- The recorder modes which are now supported are =ModeRecordOnly=,
+  =ModeRecordOnce=, =ModeReplayOnly=, =ModeReplayWithNewEpisodes= and
+  =ModePassthrough=. Please refer to the API documentation for more
+  details on their use cases
+- In order to create recorders with custom options you should use the
+  =recorder.NewWithOptions= function from now on
+- The default mode of the recorder is now =ModeRecordOnce=
+- =ModeDisabled= has been removed and is now replaced by
+  =ModePassthrough=
+- Cassette format has been changed and the supported version of the
+  cassette from now on is =v2=.
+- Additional fields have been added to the cassette to allow
+  developers to create more complex matchers based on the existing
+  fields
+- Each interaction in the cassette now has a unique integer id,
+  specifying the position of the interaction in the cassette. See
+  issue #22
+- Utility method on the recorder can now return a pre-configured HTTP
+  client with the recorder's transport - =GetDefaultClient()=
+- CI/CD pipeline has been transferred to Github actions
+- Closed out some long standing issues
+- Extended and refactored test cases
+- etc
+
+* 2022-08-16
+
+=v2.3.0= has been released.
+
+- Cleaned up =v2= package structure
+- Switched from =gopkg.in/yaml.v2= to =gopkg.in/yaml.v3=
+- Package import path for =go-vcr= has changed from
+  =github.com/dnaeon/go-vcr= to =gopkg.in/dnaeon/go-vcr.v2=. See #73
+- =v2= of =go-vcr= resides in the =v2= branch, which is now the default
+- Fixed a regression where the default mode of the recorder has been
+  changed. See issue #72
+
+* 2022-08-15
+
+=v2.1.0= has been released.
+
+Switch to =gopkg.in/yaml.v3=.
+
+See issues #70 and #71
+
+* 2021-06-24
+
+=go-vcr= has been tagged =v2.0.1=.
+
+This release contains a breaking change. When upgrading to =v2.0.0=
+make sure that you re-create your cassettes.
+
+A new flag of the =recorder.Recorder= (=SkipRequestLatency=) is
+supported which allows to skip latency simulation during replay.
+
+See #63 for more details.
+
+* 2018-11
+
+Version =v1.0.0=. has been released
+
+* 2015-12
+
+Initial version of =go-vcr=.
