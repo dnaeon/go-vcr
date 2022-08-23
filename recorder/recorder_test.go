@@ -688,7 +688,7 @@ func TestPassthroughHandler(t *testing.T) {
 	}
 }
 
-func TestFilter(t *testing.T) {
+func TestAfterCaptureHook(t *testing.T) {
 	tests := []testCase{
 		{
 			method:            http.MethodHead,
@@ -709,7 +709,7 @@ func TestFilter(t *testing.T) {
 	server := newEchoHttpServer()
 	serverUrl := server.URL
 
-	cassPath, err := newCassettePath("test_filter")
+	cassPath, err := newCassettePath("test_after_capture_hook")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -728,7 +728,7 @@ func TestFilter(t *testing.T) {
 		t.Fatal("recorder is not recording")
 	}
 
-	// Add a filter which replaces each request body in the stored
+	// Add a hook which replaces each request body in the stored
 	// cassette
 	dummyBody := "[REDACTED]"
 	redactHook := func(i *cassette.Interaction) error {
@@ -748,7 +748,7 @@ func TestFilter(t *testing.T) {
 		}
 	}
 
-	// Verify that the filter has been applied
+	// Verify that the hooks has been applied
 	server.Close()
 	rec.Stop()
 
@@ -766,7 +766,7 @@ func TestFilter(t *testing.T) {
 	}
 }
 
-func TestPreSaveFilter(t *testing.T) {
+func TestBeforeSaveHook(t *testing.T) {
 	tests := []testCase{
 		{
 			method:            http.MethodHead,
@@ -787,7 +787,7 @@ func TestPreSaveFilter(t *testing.T) {
 	server := newEchoHttpServer()
 	serverUrl := server.URL
 
-	cassPath, err := newCassettePath("test_pre_save_filter")
+	cassPath, err := newCassettePath("test_before_save_hook")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -805,7 +805,7 @@ func TestPreSaveFilter(t *testing.T) {
 		t.Fatal("recorder is not recording")
 	}
 
-	// Add a save filter which replaces each request body in the stored cassette
+	// Add a hook which replaces each request body in the stored cassette
 	dummyBody := "[REDACTED]"
 	redactHook := func(i *cassette.Interaction) error {
 		if i.Request.Method == http.MethodPost && i.Request.Body == "foo" {
@@ -824,7 +824,7 @@ func TestPreSaveFilter(t *testing.T) {
 		}
 	}
 
-	// Verify that the filter has been applied
+	// Verify that the hook has been applied
 	server.Close()
 	rec.Stop()
 
@@ -839,6 +839,118 @@ func TestPreSaveFilter(t *testing.T) {
 		body := c.Interactions[i].Request.Body
 		if c.Interactions[i].Request.Method == http.MethodPost && body != dummyBody {
 			t.Fatalf("want body: %q, got body: %q", dummyBody, body)
+		}
+	}
+}
+
+func TestBeforeResponseReplayHook(t *testing.T) {
+	// Do initial recording of the interactions, then use a
+	// BeforeResponseReplayHook to modify the body returned to the
+	// client.
+	tests := []testCase{
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:            http.MethodPost,
+			body:              "bar",
+			wantBody:          "POST go-vcr\nbar",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/bar",
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("test_before_response_replay_hook")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	rec, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecordOnce {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
+	// Run tests
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Stop recorder and server. Then re-run the tests with a
+	// BeforeResponseReplay hook installed, which will modify the
+	// body of each response before returning it to the client.
+	server.Close()
+	rec.Stop()
+
+	// Re-run the tests with the hook installed.
+	rec, err = recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecordOnce {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	// Recorder should not be recording this time
+	if rec.IsRecording() != false {
+		t.Fatal("recorder should not be recording")
+	}
+
+	// Add a hook which replaces each request body of a previously
+	// recorded interaction.
+	dummyBody := "MODIFIED BODY"
+	hook := func(i *cassette.Interaction) error {
+		i.Response.Body = dummyBody
+
+		return nil
+	}
+	rec.AddHook(hook, recorder.BeforeResponseReplayHook)
+
+	newTests := []testCase{
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          dummyBody,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:            http.MethodPost,
+			body:              "bar",
+			wantBody:          dummyBody,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/bar",
+		},
+	}
+
+	client = rec.GetDefaultClient()
+	for _, test := range newTests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
