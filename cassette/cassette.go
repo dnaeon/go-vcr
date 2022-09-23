@@ -293,11 +293,6 @@ func (c *Cassette) Save() error {
 	c.Mu.RLock()
 	defer c.Mu.RUnlock()
 
-	// Save cassette file only if there were any interactions made
-	if len(c.Interactions) == 0 {
-		return nil
-	}
-
 	// Create directory for cassette if missing
 	cassetteDir := filepath.Dir(c.File)
 	if _, err := os.Stat(cassetteDir); os.IsNotExist(err) {
