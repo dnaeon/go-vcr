@@ -1,3 +1,12 @@
+* 2022-09-27
+
+Release =v3.1.1= has been tagged.
+
+Cassettes with no recorded interactions will be saved on
+disk. Previous behaviour was to skip saving the cassette at all.
+
+See [[https://github.com/dnaeon/go-vcr/pull/79][PR #79]] for more details.
+
 * 2022-08-23
 
 Release =v3.1.0= has been tagged.
