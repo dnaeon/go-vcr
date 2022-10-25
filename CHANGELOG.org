@@ -1,3 +1,14 @@
+* 2022-10-25
+
+Release =v3.1.2= has been tagged.
+
+New field called =DiscardOnSave= has been added to the
+=cassette.Interaction= type, which allows for a hook to set it to
+=true=, and as a result to discard the interaction from saving it on
+disk.
+
+See [[https://github.com/dnaeon/go-vcr/issues/80][#80]] for more details.
+
 * 2022-09-27
 
 Release =v3.1.1= has been tagged.
