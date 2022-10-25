@@ -1225,3 +1225,82 @@ func TestInvalidRecorderMode(t *testing.T) {
 		t.Fatal("expected recorder to fail with invalid mode")
 	}
 }
+
+func TestDiscardInteractionsOnSave(t *testing.T) {
+	tests := []testCase{
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:            http.MethodPost,
+			body:              "bar",
+			wantBody:          "POST go-vcr\nbar",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/bar",
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("test_discard_interactions_on_save")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	rec, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecordOnce {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
+	// The following hook function will be used to determine
+	// whether an interaction is to be discarded when saving the
+	// cassette on disk.
+	hook := func(i *cassette.Interaction) error {
+		if i.Request.Method == http.MethodPost && i.Request.Body == "foo" {
+			i.DiscardOnSave = true
+		}
+
+		return nil
+	}
+	rec.AddHook(hook, recorder.AfterCaptureHook)
+
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Stop recorder and verify cassette
+	rec.Stop()
+
+	cass, err := cassette.Load(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// We should have one interaction less than our test cases
+	// when reading the cassette from disk.
+	wantInteractions := len(tests) - 1
+	gotInteractions := len(cass.Interactions)
+	if wantInteractions != gotInteractions {
+		t.Fatalf("expected %d interactions, got %d", wantInteractions, gotInteractions)
+	}
+}

@@ -123,10 +123,23 @@ type Response struct {
 // Interaction type contains a pair of request/response for a
 // single HTTP interaction between a client and a server
 type Interaction struct {
-	ID       int      `yaml:"id"`
-	Request  Request  `yaml:"request"`
+	// ID is the id of the interaction
+	ID int `yaml:"id"`
+
+	// Request is the recorded request
+	Request Request `yaml:"request"`
+
+	// Response is the recorded response
 	Response Response `yaml:"response"`
-	replayed bool     `yaml:"-"`
+
+	// DiscardOnSave if set to true will discard the interaction
+	// as a whole and it will not be part of the final
+	// interactions when saving the cassette on disk.
+	DiscardOnSave bool `yaml:"-"`
+
+	// replayed is true when this interaction has been played
+	// already.
+	replayed bool `yaml:"-"`
 }
 
 // GetHTTPRequest converts the recorded interaction request to
@@ -300,6 +313,20 @@ func (c *Cassette) Save() error {
 			return err
 		}
 	}
+
+	// Filter out interactions which should be discarded. While
+	// discarding interactions we should also fix the interaction
+	// IDs, so that we don't introduce gaps in the final results.
+	nextId := 0
+	interactions := make([]*Interaction, 0)
+	for _, i := range c.Interactions {
+		if !i.DiscardOnSave {
+			i.ID = nextId
+			interactions = append(interactions, i)
+			nextId += 1
+		}
+	}
+	c.Interactions = interactions
 
 	// Marshal to YAML and save interactions
 	data, err := yaml.Marshal(c)
