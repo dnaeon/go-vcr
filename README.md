@@ -48,7 +48,7 @@ func customMatcher(r *http.Request, i Request) bool {
 
 	var reqBody []byte
 	var err error
-	reqBody, err = ioutil.ReadAll(r.Body)
+	reqBody, err = io.ReadAll(r.Body)
 	if err != nil {
 		log.Fatal("failed to read request body")
 	}
