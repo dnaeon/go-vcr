@@ -28,8 +28,10 @@ package recorder
 import (
 	"bufio"
 	"bytes"
+	"embed"
 	"errors"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -158,6 +160,8 @@ type Options struct {
 	// original request to simulate the latency between our
 	// recorder and the remote endpoints.
 	SkipRequestLatency bool
+
+	Fs embed.FS
 }
 
 // Recorder represents a type used to record and replay
@@ -184,6 +188,7 @@ func New(cassetteName string) (*Recorder, error) {
 		Mode:               ModeRecordOnce,
 		SkipRequestLatency: false,
 		RealTransport:      http.DefaultTransport,
+		Fs:                 embed.FS{},
 	}
 
 	return NewWithOptions(opts)
@@ -201,9 +206,27 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 		hooks:        make([]*Hook, 0),
 	}
 
-	cassetteFile := cassette.New(opts.CassetteName).File
-	_, err := os.Stat(cassetteFile)
-	cassetteExists := !os.IsNotExist(err)
+	useFs := opts.Fs != embed.FS{}
+
+	cassetteExists := true
+
+	switch useFs {
+	case true:
+		cassetteFile := cassette.New(opts.CassetteName).File
+		_, err := opts.Fs.Open(cassetteFile)
+		if err != nil {
+			switch {
+			case errors.Is(err, fs.ErrNotExist):
+				cassetteExists = false
+			default:
+				return nil, err
+			}
+		}
+	case false:
+		cassetteFile := cassette.New(opts.CassetteName).File
+		_, err := os.Stat(cassetteFile)
+		cassetteExists = !os.IsNotExist(err)
+	}
 
 	switch {
 	case opts.Mode == ModeRecordOnly:
@@ -213,9 +236,21 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 	case opts.Mode == ModeReplayOnly && !cassetteExists:
 		return nil, cassette.ErrCassetteNotFound
 	case opts.Mode == ModeReplayOnly && cassetteExists:
-		c, err := cassette.Load(opts.CassetteName)
-		if err != nil {
-			return nil, err
+		var (
+			c   *cassette.Cassette
+			err error
+		)
+		switch useFs {
+		case true:
+			c, err = cassette.LoadFromFs(opts.CassetteName, opts.Fs)
+			if err != nil {
+				return nil, err
+			}
+		case false:
+			c, err = cassette.Load(opts.CassetteName)
+			if err != nil {
+				return nil, err
+			}
 		}
 		rec.cassette = c
 		return rec, nil
@@ -224,9 +259,21 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModeReplayWithNewEpisodes && cassetteExists:
-		c, err := cassette.Load(opts.CassetteName)
-		if err != nil {
-			return nil, err
+		var (
+			c   *cassette.Cassette
+			err error
+		)
+		switch useFs {
+		case true:
+			c, err = cassette.LoadFromFs(opts.CassetteName, opts.Fs)
+			if err != nil {
+				return nil, err
+			}
+		case false:
+			c, err = cassette.Load(opts.CassetteName)
+			if err != nil {
+				return nil, err
+			}
 		}
 		rec.cassette = c
 		return rec, nil
@@ -235,9 +282,21 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModeRecordOnce && cassetteExists:
-		c, err := cassette.Load(opts.CassetteName)
-		if err != nil {
-			return nil, err
+		var (
+			c   *cassette.Cassette
+			err error
+		)
+		switch useFs {
+		case true:
+			c, err = cassette.LoadFromFs(opts.CassetteName, opts.Fs)
+			if err != nil {
+				return nil, err
+			}
+		case false:
+			c, err = cassette.Load(opts.CassetteName)
+			if err != nil {
+				return nil, err
+			}
 		}
 		rec.cassette = c
 		return rec, nil

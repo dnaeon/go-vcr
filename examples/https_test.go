@@ -25,6 +25,7 @@
 package vcr_test
 
 import (
+	"embed"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -32,9 +33,16 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v3/recorder"
 )
 
+//go:embed fixtures
+var f embed.FS
+
 func TestHTTPS(t *testing.T) {
 	// Start our recorder
-	r, err := recorder.New("fixtures/iana-reserved-domains")
+	r, err := recorder.NewWithOptions(&recorder.Options{
+		CassetteName: "fixtures/iana-reserved-domains",
+		Mode:         recorder.ModeRecordOnce,
+		Fs:           f,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,7 +44,11 @@ type payload struct {
 }
 
 func TestJSON(t *testing.T) {
-	r, err := recorder.New("fixtures/json-content-type")
+	r, err := recorder.NewWithOptions(&recorder.Options{
+		CassetteName: "fixtures/json-content-type",
+		Mode:         recorder.ModeRecordOnce,
+		Fs:           f,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
