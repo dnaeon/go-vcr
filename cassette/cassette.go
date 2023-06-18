@@ -266,7 +266,7 @@ func Load(name string) (*Cassette, error) {
 	}
 
 	c.IsNew = false
-	if err := yaml.Unmarshal(data, &c); err != nil {
+	if err := yaml.Unmarshal(data, c); err != nil {
 		return nil, err
 	}
 
