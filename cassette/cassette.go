@@ -25,10 +25,10 @@
 package cassette
 
 import (
+	"embed"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -260,7 +260,29 @@ func New(name string) *Cassette {
 // Load reads a cassette file from disk
 func Load(name string) (*Cassette, error) {
 	c := New(name)
-	data, err := ioutil.ReadFile(c.File)
+	data, err := os.ReadFile(c.File)
+	if err != nil {
+		return nil, err
+	}
+
+	c.IsNew = false
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		return nil, err
+	}
+
+	if c.Version != CassetteFormatV2 {
+		return nil, ErrUnsupportedCassetteFormat
+	}
+	c.nextInteractionId = len(c.Interactions)
+
+	return c, err
+}
+
+// LoadFromFs reads a cassette file from embedded filesystem
+func LoadFromFs(name string, fs embed.FS) (*Cassette, error) {
+	c := New(name)
+
+	data, err := fs.ReadFile(c.File)
 	if err != nil {
 		return nil, err
 	}
