@@ -25,7 +25,7 @@
 package vcr_test
 
 import (
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 
@@ -50,7 +50,7 @@ func TestSimple(t *testing.T) {
 		t.Fatalf("Failed to get url %s: %s", url, err)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("Failed to read response body: %s", err)
 	}

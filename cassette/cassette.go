@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -260,7 +259,7 @@ func New(name string) *Cassette {
 // Load reads a cassette file from disk
 func Load(name string) (*Cassette, error) {
 	c := New(name)
-	data, err := ioutil.ReadFile(c.File)
+	data, err := os.ReadFile(c.File)
 	if err != nil {
 		return nil, err
 	}
