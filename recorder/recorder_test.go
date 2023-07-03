@@ -30,7 +30,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -65,7 +64,7 @@ func (tc testCase) run(client *http.Client, ctx context.Context, serverUrl strin
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -103,7 +102,7 @@ func newEchoHttpServer() *httptest.Server {
 // newCassettePath creates a new path to be used for test cassettes,
 // which reside in a temporary location.
 func newCassettePath(name string) (string, error) {
-	dir, err := ioutil.TempDir(os.TempDir(), "go-vcr-")
+	dir, err := os.MkdirTemp(os.TempDir(), "go-vcr-")
 	if err != nil {
 		return "", err
 	}
@@ -649,7 +648,7 @@ func TestPassthroughHandler(t *testing.T) {
 		if _, err := b.ReadFrom(r.Body); err != nil {
 			return false
 		}
-		r.Body = ioutil.NopCloser(&b)
+		r.Body = io.NopCloser(&b)
 
 		return r.Method == http.MethodPost && b.String() == "passthrough request"
 	})
@@ -1112,7 +1111,7 @@ func TestWithCustomMatcher(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Body should be the same as the first recorded interaction
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1131,12 +1130,12 @@ func TestWithCustomMatcher(t *testing.T) {
 
 		var reqBody []byte
 		var err error
-		reqBody, err = ioutil.ReadAll(r.Body)
+		reqBody, err = io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatal("failed to read request body")
 		}
 		r.Body.Close()
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+		r.Body = io.NopCloser(bytes.NewBuffer(reqBody))
 
 		return r.Method == i.Method && r.URL.String() == i.URL && string(reqBody) == i.Body
 	}

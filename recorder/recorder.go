@@ -30,7 +30,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -330,7 +329,7 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 	requestDuration := time.Since(start)
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
