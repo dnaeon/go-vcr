@@ -29,6 +29,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -210,7 +211,7 @@ func NewWithOptions(opts *Options) (*Recorder, error) {
 		rec.cassette = c
 		return rec, nil
 	case opts.Mode == ModeReplayOnly && !cassetteExists:
-		return nil, cassette.ErrCassetteNotFound
+		return nil, fmt.Errorf("%w: %s", cassette.ErrCassetteNotFound, cassetteFile)
 	case opts.Mode == ModeReplayOnly && cassetteExists:
 		c, err := cassette.Load(opts.CassetteName)
 		if err != nil {
