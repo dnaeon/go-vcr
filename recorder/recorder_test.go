@@ -28,6 +28,7 @@ package recorder_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -238,7 +239,7 @@ func TestReplayOnlyModeFailsWithMissingCassette(t *testing.T) {
 		Mode:         recorder.ModeReplayOnly,
 	}
 	_, err := recorder.NewWithOptions(opts)
-	if err != cassette.ErrCassetteNotFound {
+	if !errors.Is(err, cassette.ErrCassetteNotFound) {
 		t.Fatalf("expected cassette.ErrCassetteNotFound, got %v", err)
 	}
 }
