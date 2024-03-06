@@ -141,6 +141,12 @@ type Interaction struct {
 	replayed bool `yaml:"-"`
 }
 
+// WasReplayed returns a boolean indicating whether the given interaction was
+// already replayed.
+func (i *Interaction) WasReplayed() bool {
+	return i.replayed
+}
+
 // GetHTTPRequest converts the recorded interaction request to
 // http.Request instance
 func (i *Interaction) GetHTTPRequest() (*http.Request, error) {
