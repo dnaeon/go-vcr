@@ -987,6 +987,17 @@ func TestReplayableInteractions(t *testing.T) {
 		t.Fatal("recorder is not recording")
 	}
 
+	// Create an on-recorder-stop hook to verify that interactions were
+	// replayed
+	errNotReplayed := errors.New("interaction was not replayed")
+	hook := func(i *cassette.Interaction) error {
+		if !i.WasReplayed() {
+			return errNotReplayed
+		}
+		return nil
+	}
+	rec.AddHook(hook, recorder.OnRecorderStopHook)
+
 	// Configure replayable interactions
 	rec.SetReplayableInteractions(true)
 
@@ -999,8 +1010,10 @@ func TestReplayableInteractions(t *testing.T) {
 		}
 	}
 
-	// We should have only 1 interaction recorded
-	rec.Stop()
+	// We should have only 1 interaction recorded after stopping the recorder
+	if err := rec.Stop(); err != nil {
+		t.Fatalf("recorder did not stop properly: %s", err)
+	}
 
 	c, err := cassette.Load(cassPath)
 	if err != nil {

@@ -111,6 +111,11 @@ const (
 	// invoked before replaying a previously recorded response to
 	// the client.
 	BeforeResponseReplayHook
+
+	// OnRecorderStopHook is a hook, which will be invoked when the recorder
+	// is about to be stopped. This hook is useful for performing any
+	// post-actions such as cleanup or reporting.
+	OnRecorderStopHook
 )
 
 // Hook represents a function hook of a given kind. Depending on the
@@ -388,16 +393,27 @@ func (rec *Recorder) Stop() error {
 	_, err := os.Stat(cassetteFile)
 	cassetteExists := !os.IsNotExist(err)
 
+	// Nothing to do for ModeReplayOnly and ModePassthrough here
 	switch {
 	case rec.options.Mode == ModeRecordOnly || rec.options.Mode == ModeReplayWithNewEpisodes:
-		return rec.persistCassette()
-	case rec.options.Mode == ModeReplayOnly || rec.options.Mode == ModePassthrough:
-		return nil
+		if err := rec.persistCassette(); err != nil {
+			return err
+		}
+
 	case rec.options.Mode == ModeRecordOnce && !cassetteExists:
-		return rec.persistCassette()
-	default:
-		return nil
+		if err := rec.persistCassette(); err != nil {
+			return err
+		}
 	}
+
+	// Apply on-recorder-stop hooks
+	for _, interaction := range rec.cassette.Interactions {
+		if err := rec.applyHooks(interaction, OnRecorderStopHook); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // persisteCassette persists the cassette on disk for future re-use
