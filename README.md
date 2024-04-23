@@ -41,7 +41,7 @@ matched against the recorded request/response pairs by defining a
 For example, the following matcher will match on method, URL and body:
 
 ```go
-func customMatcher(r *http.Request, i Request) bool {
+func customMatcher(r *http.Request, i cassette.Request) bool {
 	if r.Body == nil || r.Body == http.NoBody {
 		return cassette.DefaultMatcher(r, i)
 	}
