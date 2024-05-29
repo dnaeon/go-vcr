@@ -502,6 +502,11 @@ func (rec *Recorder) SetMatcher(matcher cassette.MatcherFunc) {
 	rec.cassette.Matcher = matcher
 }
 
+// OnRequestReplay sets a function to be called when replaying a request.
+func (rec *Recorder) OnRequestReplay(onRequestReplay cassette.OnRequestReplayFunc) {
+	rec.cassette.OnRequestReplay = onRequestReplay
+}
+
 // SetReplayableInteractions defines whether to allow interactions to
 // be replayed or not. This is useful in cases when you need to hit
 // the same endpoint multiple times and want to replay the interaction
