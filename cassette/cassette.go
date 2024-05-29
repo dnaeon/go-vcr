@@ -213,6 +213,15 @@ func DefaultMatcher(r *http.Request, i Request) bool {
 	return r.Method == i.Method && r.URL.String() == i.URL
 }
 
+// OnRequestReplayFunc function is called when a request is being replayed.
+// This is helpful when you want to modify the request like forcing the body to be read.
+type OnRequestReplayFunc func(*http.Request) error
+
+// DefaultOnRequestReplayFunc is used when a custom function is not defined
+func DefaultOnRequestReplayFunc(*http.Request) error {
+	return nil
+}
+
 // Cassette type
 type Cassette struct {
 	// Name of the cassette
@@ -238,6 +247,9 @@ type Cassette struct {
 	// Matches actual request with interaction requests.
 	Matcher MatcherFunc `yaml:"-"`
 
+	// OnRequestReplay is called when a request is being replayed.
+	OnRequestReplay OnRequestReplayFunc `yaml:"-"`
+
 	// IsNew specifies whether this is a newly created cassette.
 	// Returns false, when the cassette was loaded from an
 	// existing source, e.g. a file.
@@ -254,6 +266,7 @@ func New(name string) *Cassette {
 		Version:                CassetteFormatV2,
 		Interactions:           make([]*Interaction, 0),
 		Matcher:                DefaultMatcher,
+		OnRequestReplay:        DefaultOnRequestReplayFunc,
 		ReplayableInteractions: false,
 		IsNew:                  true,
 		nextInteractionId:      0,
@@ -294,6 +307,15 @@ func (c *Cassette) AddInteraction(i *Interaction) {
 
 // GetInteraction retrieves a recorded request/response interaction
 func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
+	i, err := c.getInteraction(r)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure OnRequestReplay is not wrapped with a lock.
+	return i, c.OnRequestReplay(r)
+}
+
+func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	for _, i := range c.Interactions {

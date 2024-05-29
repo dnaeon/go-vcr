@@ -1317,3 +1317,90 @@ func TestDiscardInteractionsOnSave(t *testing.T) {
 		t.Fatalf("expected %d interactions, got %d", wantInteractions, gotInteractions)
 	}
 }
+
+func TestOnRequestReplay(t *testing.T) {
+	tests := []testCase{
+		{
+			method:            http.MethodPost,
+			body:              "foo",
+			wantBody:          "POST go-vcr\nfoo",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/foo",
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+
+	cassPath, err := newCassettePath("test_on_request_replay")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	rec, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Mode() != recorder.ModeRecordOnce {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != true {
+		t.Fatal("recorder is not recording")
+	}
+
+	// populate the cassette
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	server.Close()
+	rec.Stop()
+
+	// Re-run the tests with the recorder in replay mode
+	opts := &recorder.Options{
+		CassetteName: cassPath,
+		Mode:         recorder.ModeReplayOnly,
+	}
+	rec, err = recorder.NewWithOptions(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
+
+	if rec.Mode() != recorder.ModeReplayOnly {
+		t.Fatal("recorder is not in the correct mode")
+	}
+
+	if rec.IsRecording() != false {
+		t.Fatal("recorder should not be recording")
+	}
+
+	var onReplayRequest *http.Request
+	// Add a hook to capture the request being replayed
+	rec.OnRequestReplay(func(r *http.Request) error {
+		onReplayRequest = r
+		return nil
+	})
+
+	// Set replayable interactions to true, so that we can match
+	// against the already recorded interactions.
+	rec.SetReplayableInteractions(true)
+
+	for _, test := range tests {
+		if err := test.run(rec.GetDefaultClient(), ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if onReplayRequest == nil {
+		t.Fatal("expected replaced request not be nil")
+	}
+}
