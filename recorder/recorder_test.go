@@ -1111,10 +1111,10 @@ func TestWithCustomMatcher(t *testing.T) {
 	rec.SetReplayableInteractions(true)
 
 	// All requests which hit the same URL and use the same method
-	// will match against the first recorded interaction.
+	// will match against the recorded interaction.
 	client = rec.GetDefaultClient()
 	url := fmt.Sprintf("%s%s", serverUrl, "/api/v1/foo") // Same URL as the test cases
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("any body will match"))
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("foo"))
 	if err != nil {
 		t.Fatal(err)
 	}
