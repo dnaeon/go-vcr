@@ -25,6 +25,7 @@
 package cassette
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -32,11 +33,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
-	"reflect"
-	"bytes"
 
 	"gopkg.in/yaml.v3"
 )
@@ -209,9 +209,13 @@ func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
 // criteria.
 type MatcherFunc func(*http.Request, Request) bool
 
+type matcher struct {
+	opts *MatcherFuncOpts
+}
+
 // Similar to reflect.DeepEqual, but considers the contents of collections, so {} and nil would be
 // considered equal. works with Array, Map, Slice, or pointer to Array.
-func deepEqualContents(x, y any) bool {
+func (m *matcher) deepEqualContents(x, y any) bool {
 	if reflect.ValueOf(x).IsNil() {
 		if reflect.ValueOf(y).IsNil() {
 			return true
@@ -227,7 +231,7 @@ func deepEqualContents(x, y any) bool {
 	}
 }
 
-func bodyMatches(r *http.Request, i Request) bool {
+func (m *matcher) bodyMatches(r *http.Request, i Request) bool {
 	if r.Body != nil {
 		var buffer bytes.Buffer
 
@@ -249,9 +253,15 @@ func bodyMatches(r *http.Request, i Request) bool {
 	return true
 }
 
-// DefaultMatcher is used when a custom matcher is not defined. It compares the whole HTTP request
-// and only matches, if everything (eg: method, url, headers, body, ) matches.
-func DefaultMatcher(r *http.Request, i Request) bool {
+func (m *matcher) cloneHeader(h http.Header) http.Header {
+	r := http.Header{}
+	for key, value := range h {
+		r[key] = value
+	}
+	return r
+}
+
+func (m *matcher) matcher(r *http.Request, i Request) bool {
 
 	if r.Method != i.Method {
 		return false
@@ -261,18 +271,33 @@ func DefaultMatcher(r *http.Request, i Request) bool {
 		return false
 	}
 
+	if r.Proto != i.Proto {
+		return false
+	}
+
 	if r.ProtoMajor != i.ProtoMajor {
 		return false
 	}
+
 	if r.ProtoMinor != i.ProtoMinor {
 		return false
 	}
 
-	if !deepEqualContents(r.Header, i.Headers) {
-		return false
+	if m.opts.IgnoreUserAgent {
+		requestHeader := m.cloneHeader(r.Header)
+		delete(requestHeader, "User-Agent")
+		cassetteRequestHeaders := m.cloneHeader(i.Headers)
+		delete(cassetteRequestHeaders, "User-Agent")
+		if !m.deepEqualContents(requestHeader, cassetteRequestHeaders) {
+			return false
+		}
+	} else {
+		if !m.deepEqualContents(r.Header, i.Headers) {
+			return false
+		}
 	}
 
-	if !bodyMatches(r, i) {
+	if !m.bodyMatches(r, i) {
 		return false
 	}
 
@@ -280,7 +305,7 @@ func DefaultMatcher(r *http.Request, i Request) bool {
 		return false
 	}
 
-	if !deepEqualContents(r.TransferEncoding, i.TransferEncoding) {
+	if !m.deepEqualContents(r.TransferEncoding, i.TransferEncoding) {
 		return false
 	}
 
@@ -288,7 +313,11 @@ func DefaultMatcher(r *http.Request, i Request) bool {
 		return false
 	}
 
-	if !deepEqualContents(r.Trailer, i.Trailer) {
+	if !m.deepEqualContents(r.Form, i.Form) {
+		return false
+	}
+
+	if !m.deepEqualContents(r.Trailer, i.Trailer) {
 		return false
 	}
 
@@ -302,6 +331,30 @@ func DefaultMatcher(r *http.Request, i Request) bool {
 
 	return true
 }
+
+// Options for NewMatcherFunc
+type MatcherFuncOpts struct {
+	// The "User-Agent" header sometimes conatins things such as GOOS or GOARCH values, which
+	// causes a mismatch, when the same cassette is ran on different machines.
+	// Setting this option to true, makes the matcher ignore this header.
+	IgnoreUserAgent bool
+}
+
+// Creates a new MatcherFunc based on given options. The default is to compare the whole HTTP request
+// and only matches, if everything (eg: method, url, headers, body) matches.
+// MatcherFuncOpts can tweak some of that behaviour.
+func NewMatcherFunc(o *MatcherFuncOpts) MatcherFunc {
+	if o == nil {
+		o = &MatcherFuncOpts{}
+	}
+	return (&matcher{
+		opts: o,
+	}).matcher
+}
+
+// DefaultMatcher is used when a custom matcher is not defined. It only matches if everything (eg:
+// method, url, headers, body) matches.
+var DefaultMatcher = NewMatcherFunc(nil)
 
 // OnRequestReplayFunc function is called when a request is being replayed.
 // This is helpful when you want to modify the request like forcing the body to be read.
