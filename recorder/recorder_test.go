@@ -49,6 +49,7 @@ type testCase struct {
 	wantBody          string
 	wantStatus        int
 	wantContentLength int
+	wantError         error
 	path              string
 }
 
@@ -61,6 +62,9 @@ func (tc testCase) run(client *http.Client, ctx context.Context, serverUrl strin
 
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
+		if tc.wantError != nil && errors.Is(err, tc.wantError) {
+			return nil
+		}
 		return err
 	}
 	defer resp.Body.Close()
@@ -1216,6 +1220,97 @@ func TestRecordOnlyMode(t *testing.T) {
 	if !rec.IsNewCassette() {
 		t.Fatal("recorder is not using a new cassette")
 	}
+
+	// Run tests
+	ctx := context.Background()
+	client := rec.GetDefaultClient()
+	for _, test := range tests {
+		if err := test.run(client, ctx, serverUrl); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestBlockRealTransportUnsafeMethods(t *testing.T) {
+	// Set things up
+	tests := []testCase{
+		{
+			method:            http.MethodGet,
+			wantBody:          "GET go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 11,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:            http.MethodHead,
+			wantStatus:        http.StatusOK,
+			wantContentLength: 12,
+			path:              "/api/v1/bar",
+		},
+		{
+			method:            http.MethodOptions,
+			wantBody:          "OPTIONS go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 15,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:            http.MethodTrace,
+			wantBody:          "TRACE go-vcr\n",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 13,
+			path:              "/api/v1/foo",
+		},
+		{
+			method:    http.MethodPost,
+			body:      "foo",
+			wantError: recorder.ErrUnsafeRequestMethod,
+			path:      "/api/v1/baz",
+		},
+		{
+			method:    http.MethodPut,
+			body:      "foo",
+			wantError: recorder.ErrUnsafeRequestMethod,
+			path:      "/api/v1/baz",
+		},
+		{
+			method:    http.MethodDelete,
+			wantError: recorder.ErrUnsafeRequestMethod,
+			path:      "/api/v1/baz",
+		},
+		{
+			method:    http.MethodConnect,
+			wantError: recorder.ErrUnsafeRequestMethod,
+			path:      "/api/v1/baz",
+		},
+		{
+			method:    http.MethodPatch,
+			body:      "foo",
+			wantError: recorder.ErrUnsafeRequestMethod,
+			path:      "/api/v1/baz",
+		},
+	}
+
+	server := newEchoHttpServer()
+	serverUrl := server.URL
+	defer server.Close()
+
+	cassPath, err := newCassettePath("test_record_only")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create recorder
+	opts := &recorder.Options{
+		CassetteName:                    cassPath,
+		Mode:                            recorder.ModeRecordOnly,
+		BlockRealTransportUnsafeMethods: true,
+	}
+	rec, err := recorder.NewWithOptions(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
 
 	// Run tests
 	ctx := context.Background()
