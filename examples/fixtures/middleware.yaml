@@ -1,0 +1,77 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: 127.0.0.1:58027
+        remote_addr: 127.0.0.1:58028
+        request_uri: /request1
+        body: ""
+        form: {}
+        headers:
+            Accept-Encoding:
+                - gzip
+            User-Agent:
+                - Go-http-client/1.1
+        url: http://go-vcr/request1
+        method: GET
+      response:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: false
+        body: OK
+        headers:
+            Content-Type:
+                - text/plain; charset=utf-8
+            Key:
+                - VALUE
+        status: 200 OK
+        code: 200
+        duration: 83ns
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: 127.0.0.1:58027
+        remote_addr: 127.0.0.1:58029
+        request_uri: /request2
+        body: ""
+        form: {}
+        headers:
+            Accept-Encoding:
+                - gzip
+            User-Agent:
+                - Go-http-client/1.1
+        url: http://go-vcr/request2
+        method: GET
+      response:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: false
+        body: OK
+        headers:
+            Content-Type:
+                - text/plain; charset=utf-8
+            Key:
+                - VALUE
+        status: 200 OK
+        code: 200
+        duration: 125ns
