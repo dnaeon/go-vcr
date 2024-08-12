@@ -1,6 +1,8 @@
 package recorder
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 )
@@ -9,7 +11,14 @@ import (
 func (rec *Recorder) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ww := newPassthrough(w)
+
+		// Tee the body so it can be read by the next handler and by the recorder
+		body := &bytes.Buffer{}
+		r.Body = io.NopCloser(io.TeeReader(r.Body, body))
+
 		next.ServeHTTP(ww, r)
+
+		r.Body = io.NopCloser(body)
 
 		// On the server side, requests do not have Host and Scheme so it must be set
 		r.URL.Host = "go-vcr"
