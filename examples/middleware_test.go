@@ -1,8 +1,11 @@
 package vcr_test
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"gopkg.in/dnaeon/go-vcr.v3/cassette"
@@ -16,7 +19,13 @@ func TestMiddleware(t *testing.T) {
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("KEY", "VALUE")
-			w.Write([]byte("OK"))
+
+			body, _ := io.ReadAll(r.Body)
+			if len(body) > 0 {
+				w.Write(body)
+			} else {
+				w.Write([]byte("OK"))
+			}
 		})
 
 		if middleware != nil {
@@ -27,10 +36,13 @@ func TestMiddleware(t *testing.T) {
 		return mux
 	}
 
+	// In a real-world scenario, the recorder will run outside of unit tests
+	// since you want to be able to record real application behavior
 	t.Run("RecordRealInteractionsWithMiddleware", func(t *testing.T) {
 		recorder, err := recorder.NewWithOptions(&recorder.Options{
-			CassetteName: cassetteName,
-			Mode:         recorder.ModeRecordOnly,
+			CassetteName:                    cassetteName,
+			Mode:                            recorder.ModeRecordOnly,
+			BlockRealTransportUnsafeMethods: false,
 		})
 		if err != nil {
 			t.Errorf("error creating recorder: %v", err)
@@ -49,6 +61,16 @@ func TestMiddleware(t *testing.T) {
 		}
 
 		_, err = http.Get(server.URL + "/request2")
+		if err != nil {
+			t.Errorf("error making request: %v", err)
+		}
+
+		_, err = http.PostForm(server.URL+"/postform", url.Values{"key": []string{"value"}})
+		if err != nil {
+			t.Errorf("error making request: %v", err)
+		}
+
+		_, err = http.Post(server.URL+"/postdata", "application/json", bytes.NewBufferString(`{"key":"value"}`))
 		if err != nil {
 			t.Errorf("error making request: %v", err)
 		}

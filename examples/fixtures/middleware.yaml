@@ -9,8 +9,8 @@ interactions:
         content_length: 0
         transfer_encoding: []
         trailer: {}
-        host: 127.0.0.1:58027
-        remote_addr: 127.0.0.1:58028
+        host: 127.0.0.1:60761
+        remote_addr: 127.0.0.1:60762
         request_uri: /request1
         body: ""
         form: {}
@@ -37,7 +37,7 @@ interactions:
                 - VALUE
         status: 200 OK
         code: 200
-        duration: 83ns
+        duration: 42ns
     - id: 1
       request:
         proto: HTTP/1.1
@@ -46,8 +46,8 @@ interactions:
         content_length: 0
         transfer_encoding: []
         trailer: {}
-        host: 127.0.0.1:58027
-        remote_addr: 127.0.0.1:58029
+        host: 127.0.0.1:60761
+        remote_addr: 127.0.0.1:60763
         request_uri: /request2
         body: ""
         form: {}
@@ -67,6 +67,90 @@ interactions:
         content_length: -1
         uncompressed: false
         body: OK
+        headers:
+            Content-Type:
+                - text/plain; charset=utf-8
+            Key:
+                - VALUE
+        status: 200 OK
+        code: 200
+        duration: 41ns
+    - id: 2
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 9
+        transfer_encoding: []
+        trailer: {}
+        host: 127.0.0.1:60761
+        remote_addr: 127.0.0.1:60764
+        request_uri: /postform
+        body: key=value
+        form:
+            key:
+                - value
+        headers:
+            Accept-Encoding:
+                - gzip
+            Content-Length:
+                - "9"
+            Content-Type:
+                - application/x-www-form-urlencoded
+            User-Agent:
+                - Go-http-client/1.1
+        url: http://go-vcr/postform
+        method: POST
+      response:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: false
+        body: key=value
+        headers:
+            Content-Type:
+                - text/plain; charset=utf-8
+            Key:
+                - VALUE
+        status: 200 OK
+        code: 200
+        duration: 375ns
+    - id: 3
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 15
+        transfer_encoding: []
+        trailer: {}
+        host: 127.0.0.1:60761
+        remote_addr: 127.0.0.1:60765
+        request_uri: /postdata
+        body: '{"key":"value"}'
+        form: {}
+        headers:
+            Accept-Encoding:
+                - gzip
+            Content-Length:
+                - "15"
+            Content-Type:
+                - application/json
+            User-Agent:
+                - Go-http-client/1.1
+        url: http://go-vcr/postdata
+        method: POST
+      response:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: false
+        body: '{"key":"value"}'
         headers:
             Content-Type:
                 - text/plain; charset=utf-8
