@@ -453,6 +453,11 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 	if r.Body != nil && r.Body != http.NoBody {
 		// Record the request body so we can add it to the cassette
 		r.Body = io.NopCloser(io.TeeReader(r.Body, reqBody))
+		if serverResponse != nil {
+			// when serverResponse is provided by middleware, it has to be read in order
+			// for reqBody buffer to be populated
+			_, _ = io.ReadAll(r.Body)
+		}
 	}
 
 	// Perform request to it's original destination and record the interactions
