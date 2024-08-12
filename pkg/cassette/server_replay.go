@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -37,6 +38,10 @@ func TestInteractionReplay(t *testing.T, handler http.Handler, interaction *Inte
 	req, err := interaction.GetHTTPRequest()
 	if err != nil {
 		t.Errorf("unexpected error getting interaction request: %v", err)
+	}
+
+	if len(req.Form) > 0 {
+		req.Body = io.NopCloser(strings.NewReader(req.Form.Encode()))
 	}
 
 	w := httptest.NewRecorder()
