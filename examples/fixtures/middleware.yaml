@@ -9,8 +9,8 @@ interactions:
         content_length: 0
         transfer_encoding: []
         trailer: {}
-        host: 127.0.0.1:60761
-        remote_addr: 127.0.0.1:60762
+        host: ""
+        remote_addr: ""
         request_uri: /request1
         body: ""
         form: {}
@@ -37,7 +37,7 @@ interactions:
                 - VALUE
         status: 200 OK
         code: 200
-        duration: 42ns
+        duration: 0s
     - id: 1
       request:
         proto: HTTP/1.1
@@ -46,9 +46,9 @@ interactions:
         content_length: 0
         transfer_encoding: []
         trailer: {}
-        host: 127.0.0.1:60761
-        remote_addr: 127.0.0.1:60763
-        request_uri: /request2
+        host: ""
+        remote_addr: ""
+        request_uri: /request2?query=example
         body: ""
         form: {}
         headers:
@@ -56,7 +56,7 @@ interactions:
                 - gzip
             User-Agent:
                 - Go-http-client/1.1
-        url: http://go-vcr/request2
+        url: http://go-vcr/request2?query=example
         method: GET
       response:
         proto: HTTP/1.1
@@ -66,7 +66,9 @@ interactions:
         trailer: {}
         content_length: -1
         uncompressed: false
-        body: OK
+        body: |-
+            query=example
+            OK
         headers:
             Content-Type:
                 - text/plain; charset=utf-8
@@ -74,7 +76,7 @@ interactions:
                 - VALUE
         status: 200 OK
         code: 200
-        duration: 41ns
+        duration: 0s
     - id: 2
       request:
         proto: HTTP/1.1
@@ -83,8 +85,8 @@ interactions:
         content_length: 9
         transfer_encoding: []
         trailer: {}
-        host: 127.0.0.1:60761
-        remote_addr: 127.0.0.1:60764
+        host: ""
+        remote_addr: ""
         request_uri: /postform
         body: key=value
         form:
@@ -117,7 +119,7 @@ interactions:
                 - VALUE
         status: 200 OK
         code: 200
-        duration: 375ns
+        duration: 0s
     - id: 3
       request:
         proto: HTTP/1.1
@@ -126,8 +128,8 @@ interactions:
         content_length: 15
         transfer_encoding: []
         trailer: {}
-        host: 127.0.0.1:60761
-        remote_addr: 127.0.0.1:60765
+        host: ""
+        remote_addr: ""
         request_uri: /postdata
         body: '{"key":"value"}'
         form: {}
@@ -158,4 +160,4 @@ interactions:
                 - VALUE
         status: 200 OK
         code: 200
-        duration: 125ns
+        duration: 0s
