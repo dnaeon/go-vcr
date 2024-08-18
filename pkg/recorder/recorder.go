@@ -586,7 +586,7 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	return rec.executeAndRecord(req, nil)
 }
 
-// executeAndRecord is used internally by the Middleware to allow recording a response on the server side
+// executeAndRecord is used internally by the HTTPMiddleware to allow recording a response on the server side
 func (rec *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Response) (*http.Response, error) {
 	// Passthrough mode, use real transport
 	if rec.mode == ModePassthrough {
