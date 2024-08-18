@@ -41,7 +41,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Cassette format versions
 const (
 	// CassetteFormatVersion is the supported cassette version.
 	CassetteFormatVersion = 2
@@ -57,7 +56,7 @@ var (
 
 	// ErrUnsupportedCassetteFormat is returned when attempting to use an
 	// older and potentially unsupported format of a cassette.
-	ErrUnsupportedCassetteFormat = fmt.Errorf("required version of cassette is v%d", CassetteFormatVersion)
+	ErrUnsupportedCassetteFormat = fmt.Errorf("unsupported cassette version format")
 )
 
 // Request represents a client request as recorded in the cassette file.
@@ -255,13 +254,11 @@ func (m *defaultMatcher) deepEqualContents(x, y any) bool {
 func (m *defaultMatcher) bodyMatches(r *http.Request, i Request) bool {
 	if r.Body != nil {
 		var buffer bytes.Buffer
-
 		if _, err := buffer.ReadFrom(r.Body); err != nil {
-			panic(fmt.Sprintf("failed to read %s %s body: %s", r.Method, r.URL.String(), err))
+			return false
 		}
 
 		r.Body = io.NopCloser(bytes.NewBuffer(buffer.Bytes()))
-
 		if buffer.String() != i.Body {
 			return false
 		}
@@ -424,7 +421,7 @@ func Load(name string) (*Cassette, error) {
 	}
 
 	if c.Version != CassetteFormatVersion {
-		return nil, ErrUnsupportedCassetteFormat
+		return nil, fmt.Errorf("%w: %d", ErrUnsupportedCassetteFormat, CassetteFormatVersion)
 	}
 	c.nextInteractionId = len(c.Interactions)
 
