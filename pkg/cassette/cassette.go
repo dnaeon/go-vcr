@@ -365,8 +365,10 @@ func DefaultOnRequestReplayFunc(*http.Request) error {
 	return nil
 }
 
-// Cassette type
+// Cassette represents a cassette containing recorded interactions.
 type Cassette struct {
+	sync.Mutex `yaml:"-"`
+
 	// Name of the cassette
 	Name string `yaml:"-"`
 
@@ -375,10 +377,6 @@ type Cassette struct {
 
 	// Cassette format version
 	Version int `yaml:"version"`
-
-	// Mutex to lock accessing Interactions. omitempty is set to
-	// prevent the mutex appearing in the recorded YAML.
-	Mu sync.RWMutex `yaml:"mu,omitempty"`
 
 	// Interactions between client and server
 	Interactions []*Interaction `yaml:"interactions"`
@@ -441,8 +439,8 @@ func Load(name string) (*Cassette, error) {
 
 // AddInteraction appends a new interaction to the cassette
 func (c *Cassette) AddInteraction(i *Interaction) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
+	c.Lock()
+	defer c.Unlock()
 	i.ID = c.nextInteractionId
 	c.nextInteractionId += 1
 	c.Interactions = append(c.Interactions, i)
@@ -459,8 +457,8 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 }
 
 func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
+	c.Lock()
+	defer c.Unlock()
 	for _, i := range c.Interactions {
 		if (c.ReplayableInteractions || !i.replayed) && c.Matcher(r, i.Request) {
 			i.replayed = true
@@ -473,8 +471,8 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 
 // Save writes the cassette data on disk for future re-use
 func (c *Cassette) Save() error {
-	c.Mu.RLock()
-	defer c.Mu.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	// Create directory for cassette if missing
 	cassetteDir := filepath.Dir(c.File)
