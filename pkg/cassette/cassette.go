@@ -200,14 +200,41 @@ func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
 // matches an interaction from the cassette.
 type MatcherFunc func(*http.Request, Request) bool
 
-type matcher struct {
-	opts *MatcherFuncOpts
+// defaultMatcher is the default matcher used to match HTTP requests with
+// recorded interactions.
+type defaultMatcher struct {
+	// If set to true, the default matcher will ignore matching on the
+	// User-Agent HTTP header.
+	ignoreUserAgent bool
+}
+
+// DefaultMatcherOption is a function which configures the default matcher.
+type DefaultMatcherOption func(m *defaultMatcher)
+
+// WithIgnoreUserAgent is a [DefaultMatcherOption], which configures the default
+// matcher to ignore matching on the User-Agent HTTP header.
+func WithIgnoreUserAgent(val bool) DefaultMatcherOption {
+	opt := func(m *defaultMatcher) {
+		m.ignoreUserAgent = val
+	}
+
+	return opt
+}
+
+// NewDefaultMatcher returns the default matcher.
+func NewDefaultMatcher(opts ...DefaultMatcherOption) MatcherFunc {
+	m := &defaultMatcher{}
+	for _, opt := range opts {
+		opt(m)
+	}
+
+	return m.matcher
 }
 
 // Similar to reflect.DeepEqual, but considers the contents of collections, so
 // {} and nil would be considered equal. works with Array, Map, Slice, or
 // pointer to Array.
-func (m *matcher) deepEqualContents(x, y any) bool {
+func (m *defaultMatcher) deepEqualContents(x, y any) bool {
 	if reflect.ValueOf(x).IsNil() {
 		if reflect.ValueOf(y).IsNil() {
 			return true
@@ -223,7 +250,9 @@ func (m *matcher) deepEqualContents(x, y any) bool {
 	}
 }
 
-func (m *matcher) bodyMatches(r *http.Request, i Request) bool {
+// bodyMatches is a predicate which tests whether the bodies of the given HTTP
+// request and interaction request match.
+func (m *defaultMatcher) bodyMatches(r *http.Request, i Request) bool {
 	if r.Body != nil {
 		var buffer bytes.Buffer
 
@@ -245,8 +274,9 @@ func (m *matcher) bodyMatches(r *http.Request, i Request) bool {
 	return true
 }
 
-func (m *matcher) matcher(r *http.Request, i Request) bool {
-
+// matcher is a predicate which matches the provided HTTP request again a
+// recorded interaction request.
+func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
 	if r.Method != i.Method {
 		return false
 	}
@@ -267,7 +297,7 @@ func (m *matcher) matcher(r *http.Request, i Request) bool {
 		return false
 	}
 
-	if m.opts.IgnoreUserAgent {
+	if m.ignoreUserAgent {
 		requestHeader := r.Header.Clone()
 		delete(requestHeader, "User-Agent")
 		cassetteRequestHeaders := i.Headers.Clone()
@@ -316,29 +346,9 @@ func (m *matcher) matcher(r *http.Request, i Request) bool {
 	return true
 }
 
-// Options for NewMatcherFunc
-type MatcherFuncOpts struct {
-	// The "User-Agent" header sometimes conatins things such as GOOS or GOARCH values, which
-	// causes a mismatch, when the same cassette is ran on different machines.
-	// Setting this option to true, makes the matcher ignore this header.
-	IgnoreUserAgent bool
-}
-
-// Creates a new MatcherFunc based on given options. The default is to compare the whole HTTP request
-// and only matches, if everything (eg: method, url, headers, body) matches.
-// MatcherFuncOpts can tweak some of that behaviour.
-func NewMatcherFunc(o *MatcherFuncOpts) MatcherFunc {
-	if o == nil {
-		o = &MatcherFuncOpts{}
-	}
-	return (&matcher{
-		opts: o,
-	}).matcher
-}
-
-// DefaultMatcher is used when a custom matcher is not defined. It only matches if everything (eg:
-// method, url, headers, body) matches.
-var DefaultMatcher = NewMatcherFunc(nil)
+// DefaultMatcher is the default matcher used to match HTTP requests with
+// recorded interactions
+var DefaultMatcher = NewDefaultMatcher()
 
 // OnRequestReplayFunc function is called when a request is being replayed.
 // This is helpful when you want to modify the request like forcing the body to be read.
@@ -466,9 +476,9 @@ func (c *Cassette) Save() error {
 		}
 	}
 
-	// Filter out interactions which should be discarded. While
-	// discarding interactions we should also fix the interaction
-	// IDs, so that we don't introduce gaps in the final results.
+	// Filter out interactions which should be discarded. While discarding
+	// interactions we should also fix the interaction IDs, so that we don't
+	// introduce gaps in the final results.
 	nextId := 0
 	interactions := make([]*Interaction, 0)
 	for _, i := range c.Interactions {
