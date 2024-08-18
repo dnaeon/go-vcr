@@ -39,6 +39,8 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
 )
 
+type MatcherFunc = cassette.MatcherFunc
+
 // ErrNoCassetteName is an error, which is returned when the recorder was
 // created without specifying a cassette name.
 var ErrNoCassetteName = errors.New("no cassette name specified")
@@ -201,6 +203,10 @@ type Recorder struct {
 	// hooks is a list of hooks, which are invoked in different
 	// stages of the playback.
 	hooks []*Hook
+
+	// matcher is the [MatcherFunc] predicate used to match HTTP requests
+	// against recorded interactions.
+	matcher MatcherFunc
 }
 
 // Option is a function which configures the [Recorder].
@@ -281,6 +287,17 @@ func WithHook(handler HookFunc, kind HookKind) Option {
 	return opt
 }
 
+// WithMatchers is an [Option], which configures the [Recorder] to use the
+// provided [MatcherFunc] predicate when matching HTTP requests against record
+// interactions.
+func WithMatcher(matcher MatcherFunc) Option {
+	opt := func(r *Recorder) {
+		r.matcher = matcher
+	}
+
+	return opt
+}
+
 // New creates a new [Recorder] and configures it using the provided options.
 func New(opts ...Option) (*Recorder, error) {
 	r := &Recorder{
@@ -290,6 +307,7 @@ func New(opts ...Option) (*Recorder, error) {
 		hooks:              make([]*Hook, 0),
 		blockUnsafeMethods: false,
 		skipRequestLatency: false,
+		matcher:            cassette.DefaultMatcher,
 	}
 
 	for _, opt := range opts {
@@ -573,19 +591,6 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		return interaction.GetHTTPResponse()
 	}
-}
-
-// SetMatcher sets a function to match requests against recorded HTTP
-// interactions.
-// TODO: Make this one an option
-func (rec *Recorder) SetMatcher(matcher cassette.MatcherFunc) {
-	rec.cassette.Matcher = matcher
-}
-
-// OnRequestReplay sets a function to be called when replaying a request.
-// TODO: Make this one an option
-func (rec *Recorder) OnRequestReplay(onRequestReplay cassette.OnRequestReplayFunc) {
-	rec.cassette.OnRequestReplay = onRequestReplay
 }
 
 // SetReplayableInteractions defines whether to allow interactions to
