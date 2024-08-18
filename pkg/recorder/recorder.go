@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2022 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2015-2024 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // Copyright (c) 2016 David Jack <davars@gmail.com>
 // All rights reserved.
 //
