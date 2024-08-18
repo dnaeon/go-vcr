@@ -50,72 +50,68 @@ type Mode int
 
 // Recorder states
 const (
-	// ModeRecordOnly specifies that VCR will run in recording
-	// mode only. HTTP interactions will be recorded for each
-	// interaction. If the cassette file is present, it will be
-	// overwritten.
+	// ModeRecordOnly specifies that VCR will run in recording mode
+	// only. HTTP interactions will be recorded for each interaction. If the
+	// cassette file is present, it will be overwritten.
 	ModeRecordOnly Mode = iota
 
-	// ModeReplayOnly specifies that VCR will only replay
-	// interactions from previously recorded cassette. If an
-	// interaction is missing from the cassette it will return
-	// ErrInteractionNotFound error. If the cassette file is
-	// missing it will return ErrCassetteNotFound error.
+	// ModeReplayOnly specifies that VCR will only replay interactions from
+	// previously recorded cassette. If an interaction is missing from the
+	// cassette it will return ErrInteractionNotFound error. If the cassette
+	// file is missing it will return ErrCassetteNotFound error.
 	ModeReplayOnly
 
-	// ModeReplayWithNewEpisodes starts the recorder in replay
-	// mode, where existing interactions are returned from the
-	// cassette, and missing ones will be recorded and added to
-	// the cassette. This mode is useful in cases where you need
-	// to update an existing cassette with new interactions, but
-	// don't want to wipe out previously recorded interactions.
-	// If the cassette file is missing it will create a new one.
+	// ModeReplayWithNewEpisodes starts the recorder in replay mode, where
+	// existing interactions are returned from the cassette, and missing
+	// ones will be recorded and added to the cassette. This mode is useful
+	// in cases where you need to update an existing cassette with new
+	// interactions, but don't want to wipe out previously recorded
+	// interactions.  If the cassette file is missing it will create a new
+	// one.
 	ModeReplayWithNewEpisodes
 
-	// ModeRecordOnce will record new HTTP interactions once only.
-	// This mode is useful in cases where you need to record a set
-	// of interactions once only and replay only the known
-	// interactions. Unknown/missing interactions will cause the
-	// recorder to return an ErrInteractionNotFound error. If the
-	// cassette file is missing, it will be created.
+	// ModeRecordOnce will record new HTTP interactions once only. This mode
+	// is useful in cases where you need to record a set of interactions
+	// once only and replay only the known interactions. Unknown/missing
+	// interactions will cause the recorder to return an
+	// ErrInteractionNotFound error. If the cassette file is missing, it
+	// will be created.
 	ModeRecordOnce
 
-	// ModePassthrough specifies that VCR will not record any
-	// interactions at all. In this mode all HTTP requests will be
-	// forwarded to the endpoints using the real HTTP transport.
-	// In this mode no cassette will be created.
+	// ModePassthrough specifies that VCR will not record any interactions
+	// at all. In this mode all HTTP requests will be forwarded to the
+	// endpoints using the real HTTP transport.  In this mode no cassette
+	// will be created.
 	ModePassthrough
 )
 
-// ErrInvalidMode is returned when attempting to start the recorder
-// with invalid mode
+// ErrInvalidMode is returned when attempting to start the recorder with invalid
+// mode
 var ErrInvalidMode = errors.New("invalid recorder mode")
 
-// HookFunc represents a function, which will be invoked in different
-// stages of the playback. The hook functions allow for plugging in to
-// the playback and transform an interaction, if needed. For example a
-// hook function might redact or remove sensitive data from a
-// request/response before it is added to the in-memory cassette, or
-// before it is saved on disk.  Another use case would be to transform
-// the HTTP response before it is returned to the client during replay
-// mode.
+// HookFunc represents a function, which will be invoked in different stages of
+// the playback. The hook functions allow for plugging in to the playback and
+// transform an interaction, if needed. For example a hook function might redact
+// or remove sensitive data from a request/response before it is added to the
+// in-memory cassette, or before it is saved on disk.  Another use case would be
+// to transform the HTTP response before it is returned to the client during
+// replay mode.
 type HookFunc func(i *cassette.Interaction) error
 
 // Hook kinds
 type HookKind int
 
 const (
-	// AfterCaptureHook represents a hook, which will be invoked
-	// after capturing a request/response pair.
+	// AfterCaptureHook represents a hook, which will be invoked after
+	// capturing a request/response pair.
 	AfterCaptureHook HookKind = iota
 
-	// BeforeSaveHook represents a hook, which will be invoked
-	// right before the cassette is saved on disk.
+	// BeforeSaveHook represents a hook, which will be invoked right before
+	// the cassette is saved on disk.
 	BeforeSaveHook
 
-	// BeforeResponseReplayHook represents a hook, which will be
-	// invoked before replaying a previously recorded response to
-	// the client.
+	// BeforeResponseReplayHook represents a hook, which will be invoked
+	// before replaying a previously recorded response to the client.
 	BeforeResponseReplayHook
 
 	// OnRecorderStopHook is a hook, which will be invoked when the recorder
@@ -124,9 +120,8 @@ const (
 	OnRecorderStopHook
 )
 
-// Hook represents a function hook of a given kind. Depending on the
-// hook kind, the function will be invoked in different stages of the
-// playback.
+// Hook represents a function hook of a given kind. Depending on the hook kind,
+// the function will be invoked in different stages of the playback.
 type Hook struct {
 	// Handler is the function which will be invoked
 	Handler HookFunc
@@ -135,7 +130,7 @@ type Hook struct {
 	Kind HookKind
 }
 
-// NewHook creates a new hook
+// NewHook creates a new hook.
 func NewHook(handler HookFunc, kind HookKind) *Hook {
 	hook := &Hook{
 		Handler: handler,
@@ -145,14 +140,15 @@ func NewHook(handler HookFunc, kind HookKind) *Hook {
 	return hook
 }
 
-// PassthroughFunc is handler which determines whether a specific HTTP request
-// is to be forwarded to the original endpoint. It should return true when a
-// request needs to be passed through, and false otherwise.
+// PassthroughFunc is a predicate which determines whether a specific HTTP
+// request is to be forwarded to the original endpoint. It should return true
+// when a request needs to be passed through, and false otherwise.
 type PassthroughFunc func(req *http.Request) bool
 
-// ErrUnsafeRequestMethod is returned when Options.BlockRealTransportUnsafeMethods is true, and
-// an request with an unsafe request is made.
-var ErrUnsafeRequestMethod = errors.New("request has unsafe method")
+// ErrUnsafeRequestMethod is returned when the [Recorder] was configured to
+// block unsafe methods, and an attempt to use such was invoked. Safe Methods
+// are defined as part of RFC 9110, section 9.2.1.
+var ErrUnsafeRequestMethod = errors.New("request uses an unsafe method")
 
 type blockUnsafeMethodsRoundTripper struct {
 	RoundTripper http.RoundTripper
@@ -171,8 +167,8 @@ func (r *blockUnsafeMethodsRoundTripper) RoundTrip(req *http.Request) (*http.Res
 	return r.RoundTripper.RoundTrip(req)
 }
 
-// Recorder represents a type used to record and replay
-// client and server interactions
+// Recorder represents a type used to record and replay client and server
+// interactions.
 type Recorder struct {
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
