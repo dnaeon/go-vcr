@@ -16,7 +16,7 @@ of your code.
 Install `go-vcr` by executing the command below:
 
 ```bash
-$ go get -v gopkg.in/dnaeon/go-vcr.v4/recorder
+$ go get -v gopkg.in/dnaeon/go-vcr.v4
 ```
 
 Note, that if you are migrating from a previous version of `go-vcr`, you may
