@@ -207,6 +207,10 @@ type Recorder struct {
 	// matcher is the [MatcherFunc] predicate used to match HTTP requests
 	// against recorded interactions.
 	matcher MatcherFunc
+
+	// replayableInteractions specifies whether to allow interactions to be
+	// replayed multiple times.
+	replayableInteractions bool
 }
 
 // Option is a function which configures the [Recorder].
@@ -298,16 +302,29 @@ func WithMatcher(matcher MatcherFunc) Option {
 	return opt
 }
 
+// WithReplayableInteractions is an [Option], which configures the [Recorder] to
+// allow replaying interactions multiple times. This is useful in situations
+// when you need to hit the same endpoint multiple times and want to replay the
+// interaction from the cassette each time.
+func WithReplayableInteractions(val bool) Option {
+	opt := func(r *Recorder) {
+		r.replayableInteractions = val
+	}
+
+	return opt
+}
+
 // New creates a new [Recorder] and configures it using the provided options.
 func New(opts ...Option) (*Recorder, error) {
 	r := &Recorder{
-		mode:               ModeRecordOnce,
-		realTransport:      http.DefaultTransport,
-		passthroughs:       make([]PassthroughFunc, 0),
-		hooks:              make([]*Hook, 0),
-		blockUnsafeMethods: false,
-		skipRequestLatency: false,
-		matcher:            cassette.DefaultMatcher,
+		mode:                   ModeRecordOnce,
+		realTransport:          http.DefaultTransport,
+		passthroughs:           make([]PassthroughFunc, 0),
+		hooks:                  make([]*Hook, 0),
+		blockUnsafeMethods:     false,
+		skipRequestLatency:     false,
+		matcher:                cassette.DefaultMatcher,
+		replayableInteractions: false,
 	}
 
 	for _, opt := range opts {
@@ -320,6 +337,8 @@ func New(opts ...Option) (*Recorder, error) {
 		return nil, err
 	}
 	r.cassette = c
+	r.cassette.Matcher = r.matcher
+	r.cassette.ReplayableInteractions = r.replayableInteractions
 
 	return r, nil
 }
@@ -591,15 +610,6 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		return interaction.GetHTTPResponse()
 	}
-}
-
-// SetReplayableInteractions defines whether to allow interactions to
-// be replayed or not. This is useful in cases when you need to hit
-// the same endpoint multiple times and want to replay the interaction
-// from the cassette, instead of hiting the endpoint.
-// TODO: Make this one an option
-func (rec *Recorder) SetReplayableInteractions(replayable bool) {
-	rec.cassette.ReplayableInteractions = replayable
 }
 
 // Mode returns recorder state
