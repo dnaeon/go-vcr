@@ -1,9 +1,9 @@
 ## go-vcr
 
 [![Build Status](https://github.com/dnaeon/go-vcr/actions/workflows/test.yaml/badge.svg)](https://github.com/dnaeon/go-vcr/actions/workflows/test.yaml/badge.svg)
-[![Go Reference](https://pkg.go.dev/badge/gopkg.in/dnaeon/go-vcr.v3.svg)](https://pkg.go.dev/gopkg.in/dnaeon/go-vcr.v3)
-[![Go Report Card](https://goreportcard.com/badge/gopkg.in/dnaeon/go-vcr.v3)](https://goreportcard.com/report/gopkg.in/dnaeon/go-vcr.v3)
-[![codecov](https://codecov.io/gh/dnaeon/go-vcr/branch/v3/graph/badge.svg)](https://codecov.io/gh/dnaeon/go-vcr)
+[![Go Reference](https://pkg.go.dev/badge/gopkg.in/dnaeon/go-vcr.v4.svg)](https://pkg.go.dev/gopkg.in/dnaeon/go-vcr.v4)
+[![Go Report Card](https://goreportcard.com/badge/gopkg.in/dnaeon/go-vcr.v4)](https://goreportcard.com/report/gopkg.in/dnaeon/go-vcr.v4)
+[![codecov](https://codecov.io/gh/dnaeon/go-vcr/branch/v4/graph/badge.svg)](https://codecov.io/gh/dnaeon/go-vcr)
 
 `go-vcr` simplifies testing by recording your HTTP interactions and
 replaying them in future runs in order to provide fast, deterministic
@@ -16,13 +16,11 @@ and accurate testing of your code.
 Install `go-vcr` by executing the command below:
 
 ```bash
-$ go get -v gopkg.in/dnaeon/go-vcr.v3/recorder
+$ go get -v gopkg.in/dnaeon/go-vcr.v4/recorder
 ```
 
-Note, that if you are migrating from a previous version of `go-vcr`,
-you need re-create your test cassettes, because as of `go-vcr v3`
-there is a new format of the cassette, which is not
-backwards-compatible with older releases.
+Note, that if you are migrating from a previous version of `go-vcr`, you may
+need to re-create your tests cassettes.
 
 ## Usage
 

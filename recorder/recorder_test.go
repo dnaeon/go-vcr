@@ -39,8 +39,8 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/dnaeon/go-vcr.v3/cassette"
-	"gopkg.in/dnaeon/go-vcr.v3/recorder"
+	"gopkg.in/dnaeon/go-vcr.v4/cassette"
+	"gopkg.in/dnaeon/go-vcr.v4/recorder"
 )
 
 type testCase struct {
