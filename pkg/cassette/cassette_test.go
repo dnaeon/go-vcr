@@ -102,7 +102,7 @@ func getMatcherRequests(t *testing.T) (*http.Request, Request) {
 
 func TestMatcher(t *testing.T) {
 	t.Run("nil options", func(t *testing.T) {
-		matcherFn := NewMatcherFunc(nil)
+		matcherFn := DefaultMatcher
 
 		t.Run("match", func(t *testing.T) {
 			r, i := getMatcherRequests(t)
@@ -232,9 +232,7 @@ func TestMatcher(t *testing.T) {
 	})
 
 	t.Run("IgnoreUserAgent=true", func(t *testing.T) {
-		matcherFn := NewMatcherFunc(&MatcherFuncOpts{
-			IgnoreUserAgent: true,
-		})
+		matcherFn := NewDefaultMatcher(WithIgnoreUserAgent(true))
 
 		t.Run("match", func(t *testing.T) {
 			r, i := getMatcherRequests(t)
