@@ -34,7 +34,10 @@ import (
 
 func TestSimple(t *testing.T) {
 	// Start our recorder
-	r, err := recorder.New("fixtures/golang-org")
+	opts := []recorder.Option{
+		recorder.WithCassette("fixtures/golang-org"),
+	}
+	r, err := recorder.New(opts...)
 	if err != nil {
 		t.Fatal(err)
 	}

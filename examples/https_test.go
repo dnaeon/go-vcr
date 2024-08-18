@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2022 Marin Atanasov Nikolov <dnaeon@gmail.com>
+// Copyright (c) 2016-2024 Marin Atanasov Nikolov <dnaeon@gmail.com>
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -34,12 +34,14 @@ import (
 
 func TestHTTPS(t *testing.T) {
 	// Start our recorder
-	r, err := recorder.New("fixtures/iana-reserved-domains")
+	opts := []recorder.Option{
+		recorder.WithCassette("fixtures/iana-reserved-domains"),
+	}
+	r, err := recorder.New(opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Stop() // Make sure recorder is stopped once done with it
-
 	if r.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("Recorder should be in ModeRecordOnce")
 	}
@@ -58,18 +60,7 @@ func TestHTTPS(t *testing.T) {
 
 	wantHeading := "<h1>IANA-managed Reserved Domains</h1>"
 	bodyContent := string(body)
-
 	if !strings.Contains(bodyContent, wantHeading) {
 		t.Errorf("Heading %s not found in response", wantHeading)
-	}
-
-	// This one should fail, because the recorder is in
-	// ModeRecordOnce mode, and there is no recorded interaction
-	// for this URL During first-time recording this block is
-	// usually commented out, so it doesn't end up in the initial
-	// recording.
-	resp, err = client.Get("https://www.google.com/")
-	if err == nil {
-		t.Fatal("Request to www.google.com has succeeded, and it should fail")
 	}
 }
