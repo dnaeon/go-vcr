@@ -347,15 +347,6 @@ func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
 // recorded interactions
 var DefaultMatcher = NewDefaultMatcher()
 
-// OnRequestReplayFunc function is called when a request is being replayed.
-// This is helpful when you want to modify the request like forcing the body to be read.
-type OnRequestReplayFunc func(*http.Request) error
-
-// DefaultOnRequestReplayFunc is used when a custom function is not defined
-func DefaultOnRequestReplayFunc(*http.Request) error {
-	return nil
-}
-
 // Cassette represents a cassette containing recorded interactions.
 type Cassette struct {
 	sync.Mutex `yaml:"-"`
@@ -379,9 +370,6 @@ type Cassette struct {
 	// Matches actual request with interaction requests.
 	Matcher MatcherFunc `yaml:"-"`
 
-	// OnRequestReplay is called when a request is being replayed.
-	OnRequestReplay OnRequestReplayFunc `yaml:"-"`
-
 	// IsNew specifies whether this is a newly created cassette.
 	// Returns false, when the cassette was loaded from an
 	// existing source, e.g. a file.
@@ -398,7 +386,6 @@ func New(name string) *Cassette {
 		Version:                CassetteFormatVersion,
 		Interactions:           make([]*Interaction, 0),
 		Matcher:                DefaultMatcher,
-		OnRequestReplay:        DefaultOnRequestReplayFunc,
 		ReplayableInteractions: false,
 		IsNew:                  true,
 		nextInteractionId:      0,
@@ -439,14 +426,11 @@ func (c *Cassette) AddInteraction(i *Interaction) {
 
 // GetInteraction retrieves a recorded request/response interaction
 func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
-	i, err := c.getInteraction(r)
-	if err != nil {
-		return nil, err
-	}
-	// Ensure OnRequestReplay is not wrapped with a lock.
-	return i, c.OnRequestReplay(r)
+	return c.getInteraction(r)
 }
 
+// getInteraction searches for the interaction corresponding to the given HTTP
+// request, by using the configured [MatcherFunc].
 func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 	c.Lock()
 	defer c.Unlock()

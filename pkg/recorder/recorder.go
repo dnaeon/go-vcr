@@ -379,9 +379,9 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 		// Passthrough requests always hit the original endpoint
 		break
 	case (rec.mode == ModeRecordOnly || rec.mode == ModeRecordOnce) && rec.cassette.ReplayableInteractions:
-		// When running with replayable interactions look for
-		// existing interaction first, so we avoid hitting
-		// multiple times the same endpoint.
+		// When running with replayable interactions look for existing
+		// interaction first, so we avoid hitting multiple times the
+		// same endpoint.
 		interaction, err := rec.cassette.GetInteraction(r)
 		if err == nil {
 			// Interaction found, return it
