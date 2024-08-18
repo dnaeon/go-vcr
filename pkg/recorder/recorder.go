@@ -39,6 +39,10 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
 )
 
+// ErrNoCassetteName is an error, which is returned when the recorder was
+// created without specifying a cassette name.
+var ErrNoCassetteName = errors.New("no cassette name specified")
+
 // Mode represents the mode of operation of the recorder
 type Mode int
 
@@ -139,10 +143,9 @@ func NewHook(handler HookFunc, kind HookKind) *Hook {
 	return hook
 }
 
-// PassthroughFunc is handler which determines whether a specific HTTP
-// request is to be forwarded to the original endpoint. It should
-// return true when a request needs to be passed through, and false
-// otherwise.
+// PassthroughFunc is handler which determines whether a specific HTTP request
+// is to be forwarded to the original endpoint. It should return true when a
+// request needs to be passed through, and false otherwise.
 type PassthroughFunc func(req *http.Request) bool
 
 // ErrUnsafeRequestMethod is returned when Options.BlockRealTransportUnsafeMethods is true, and
@@ -166,42 +169,31 @@ func (r *blockUnsafeMethodsRoundTripper) RoundTrip(req *http.Request) (*http.Res
 	return r.RoundTripper.RoundTrip(req)
 }
 
-// Option represents the Recorder options
-type Options struct {
-	// CassetteName is the name of the cassette
-	CassetteName string
-
-	// Mode is the operating mode of the Recorder
-	Mode Mode
-
-	// RealTransport is the underlying http.RoundTripper to make
-	// the real requests
-	RealTransport http.RoundTripper
-
-	// Block unsafe methods from ever being called with RealTransport.
-	// The definition of "Safe Methods" comes from
-	// https://datatracker.ietf.org/doc/html/rfc9110#name-safe-methods
-	// and means that Safe Methods SHOULD NOT have side effects on the server.
-	// The use case for this flag is to prevent unsafe methods being used when executing tests
-	// thare are known to be "read-only".
-	BlockRealTransportUnsafeMethods bool
-
-	// SkipRequestLatency, if set to true will not simulate the
-	// latency of the recorded interaction. When set to false
-	// (default) it will block for the period of time taken by the
-	// original request to simulate the latency between our
-	// recorder and the remote endpoints.
-	SkipRequestLatency bool
-}
-
 // Recorder represents a type used to record and replay
 // client and server interactions
 type Recorder struct {
 	// Cassette used by the recorder
 	cassette *cassette.Cassette
 
-	// Recorder options
-	options *Options
+	// cassetteName is the name of the cassette to be used by the recorder.
+	cassetteName string
+
+	// mode is the mode of the recorder
+	mode Mode
+
+	// RealTransport is the underlying http.RoundTripper to make
+	// the real requests
+	realTransport http.RoundTripper
+
+	// blockUnsafeMethods specifies whether to block requests when making
+	// HTTP requests which are not safe. The "Safe Methods" are defined as
+	// part of RFC 9110, section 9.2.1, and SHOULD NOT have side effects on
+	// the server.
+	blockUnsafeMethods bool
+
+	// skipRequestLatency specifies whether to simulate the latency of the
+	// recorded interaction.
+	skipRequestLatency bool
 
 	// Passthrough handlers
 	passthroughs []PassthroughFunc
@@ -211,98 +203,164 @@ type Recorder struct {
 	hooks []*Hook
 }
 
-// New creates a new recorder
-func New(cassetteName string) (*Recorder, error) {
-	opts := &Options{
-		CassetteName:       cassetteName,
-		Mode:               ModeRecordOnce,
-		SkipRequestLatency: false,
-		RealTransport:      http.DefaultTransport,
+// Option is a function which configures the [Recorder].
+type Option func(r *Recorder)
+
+// WithCassette is an [Option], which configures the [Recorder] to use the given
+// cassette name.
+func WithCassette(name string) Option {
+	opt := func(r *Recorder) {
+		r.cassetteName = name
 	}
 
-	return NewWithOptions(opts)
+	return opt
 }
 
-// NewWithOptions creates a new recorder based on the provided options
-func NewWithOptions(opts *Options) (*Recorder, error) {
-	if opts.RealTransport == nil {
-		opts.RealTransport = http.DefaultTransport
+// WithMode is an [Option], which configures the [Recorder] to run in the
+// specified mode.
+func WithMode(mode Mode) Option {
+	opt := func(r *Recorder) {
+		r.mode = mode
 	}
 
-	rec := &Recorder{
-		options:      opts,
-		passthroughs: make([]PassthroughFunc, 0),
-		hooks:        make([]*Hook, 0),
+	return opt
+}
+
+// WithRealTransport is an [Option], which configures the [Recorder] to use the
+// specified [http.RoundTripper] when making actual HTTP requests.
+func WithRealTransport(rt http.RoundTripper) Option {
+	opt := func(r *Recorder) {
+		r.realTransport = rt
 	}
 
-	cassetteFile := cassette.New(opts.CassetteName).File
+	return opt
+}
+
+// WithBlockUnsafeMethods is an [Option], which configures the [Recorder] to
+// block HTTP requests, which are not considered "Safe Methods", according to
+// RFC 9110, section 9.2.1.
+func WithBlockUnsafeMethods(val bool) Option {
+	opt := func(r *Recorder) {
+		r.blockUnsafeMethods = val
+	}
+
+	return opt
+}
+
+// WithSkipRequestLatency is an [Option], which configures the [Recorder] whether
+// to simulate the latency of the recorded interaction.  When set to false it
+// will block for the period of time taken by the original request to simulate
+// the latency between the recorder and the remote endpoints.
+func WithSkipRequestLatency(val bool) Option {
+	opt := func(r *Recorder) {
+		r.skipRequestLatency = val
+	}
+
+	return opt
+}
+
+// WithPassthrough is an [Option], which configures the [Recorder] to
+// passthrough requests for requests which satisfy the provided
+// [PassthroughFunc] predicate.
+func WithPassthrough(passfunc PassthroughFunc) Option {
+	opt := func(r *Recorder) {
+		r.passthroughs = append(r.passthroughs, passfunc)
+	}
+
+	return opt
+}
+
+// WithHook is an [Option], which configures the [Recorder] to invoke the
+// provided hook at the specified playback stage.
+func WithHook(handler HookFunc, kind HookKind) Option {
+	opt := func(r *Recorder) {
+		hook := NewHook(handler, kind)
+		r.hooks = append(r.hooks, hook)
+	}
+
+	return opt
+}
+
+// New creates a new [Recorder] and configures it using the provided options.
+func New(opts ...Option) (*Recorder, error) {
+	r := &Recorder{
+		mode:               ModeRecordOnce,
+		realTransport:      http.DefaultTransport,
+		passthroughs:       make([]PassthroughFunc, 0),
+		hooks:              make([]*Hook, 0),
+		blockUnsafeMethods: false,
+		skipRequestLatency: false,
+	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	// Configure the cassette based on the recorder configuration
+	c, err := r.getCassette()
+	if err != nil {
+		return nil, err
+	}
+	r.cassette = c
+
+	return r, nil
+}
+
+// getCassette creates a new [*cassette.Cassette], or loads an already existing
+// one depending on the mode of the recorder.
+func (rec *Recorder) getCassette() (*cassette.Cassette, error) {
+	if rec.cassetteName == "" {
+		return nil, ErrNoCassetteName
+	}
+
+	// Create or the cassette depending on the mode we are operating in.
+	cassetteFile := cassette.New(rec.cassetteName).File
 	_, err := os.Stat(cassetteFile)
 	cassetteExists := !os.IsNotExist(err)
 
 	switch {
-	case opts.Mode == ModeRecordOnly:
-		c := cassette.New(opts.CassetteName)
-		rec.cassette = c
-		return rec, nil
-	case opts.Mode == ModeReplayOnly && !cassetteExists:
+	case rec.mode == ModeRecordOnly:
+		return cassette.New(rec.cassetteName), nil
+	case rec.mode == ModeReplayOnly && !cassetteExists:
 		return nil, fmt.Errorf("%w: %s", cassette.ErrCassetteNotFound, cassetteFile)
-	case opts.Mode == ModeReplayOnly && cassetteExists:
-		c, err := cassette.Load(opts.CassetteName)
-		if err != nil {
-			return nil, err
-		}
-		rec.cassette = c
-		return rec, nil
-	case opts.Mode == ModeReplayWithNewEpisodes && !cassetteExists:
-		c := cassette.New(opts.CassetteName)
-		rec.cassette = c
-		return rec, nil
-	case opts.Mode == ModeReplayWithNewEpisodes && cassetteExists:
-		c, err := cassette.Load(opts.CassetteName)
-		if err != nil {
-			return nil, err
-		}
-		rec.cassette = c
-		return rec, nil
-	case opts.Mode == ModeRecordOnce && !cassetteExists:
-		c := cassette.New(opts.CassetteName)
-		rec.cassette = c
-		return rec, nil
-	case opts.Mode == ModeRecordOnce && cassetteExists:
-		c, err := cassette.Load(opts.CassetteName)
-		if err != nil {
-			return nil, err
-		}
-		rec.cassette = c
-		return rec, nil
-	case opts.Mode == ModePassthrough:
-		c := cassette.New(opts.CassetteName)
-		rec.cassette = c
-		return rec, nil
+	case rec.mode == ModeReplayOnly && cassetteExists:
+		return cassette.Load(rec.cassetteName)
+	case rec.mode == ModeReplayWithNewEpisodes && !cassetteExists:
+		return cassette.New(rec.cassetteName), nil
+	case rec.mode == ModeReplayWithNewEpisodes && cassetteExists:
+		return cassette.Load(rec.cassetteName)
+	case rec.mode == ModeRecordOnce && !cassetteExists:
+		return cassette.New(rec.cassetteName), nil
+	case rec.mode == ModeRecordOnce && cassetteExists:
+		return cassette.Load(rec.cassetteName)
+	case rec.mode == ModePassthrough:
+		return cassette.New(rec.cassetteName), nil
 	default:
 		return nil, ErrInvalidMode
 	}
 }
 
+// getRoundTripper returns the [http.RoundTripper] used by the recorder.
 func (rec *Recorder) getRoundTripper() http.RoundTripper {
-	if rec.options.BlockRealTransportUnsafeMethods {
+	if rec.blockUnsafeMethods {
 		return &blockUnsafeMethodsRoundTripper{
-			RoundTripper: rec.options.RealTransport,
+			RoundTripper: rec.realTransport,
 		}
 	}
-	return rec.options.RealTransport
+
+	return rec.realTransport
 }
 
-// Proxies client requests to their original destination
+// requestHandler proxies requests to their original destination
 func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, error) {
 	if err := r.Context().Err(); err != nil {
 		return nil, err
 	}
 
 	switch {
-	case rec.options.Mode == ModeReplayOnly:
+	case rec.mode == ModeReplayOnly:
 		return rec.cassette.GetInteraction(r)
-	case rec.options.Mode == ModeReplayWithNewEpisodes:
+	case rec.mode == ModeReplayWithNewEpisodes:
 		interaction, err := rec.cassette.GetInteraction(r)
 		if err == nil {
 			// Interaction found, return it
@@ -314,13 +372,13 @@ func (rec *Recorder) requestHandler(r *http.Request) (*cassette.Interaction, err
 			// Any other error is an error
 			return nil, err
 		}
-	case rec.options.Mode == ModeRecordOnce && !rec.cassette.IsNew:
+	case rec.mode == ModeRecordOnce && !rec.cassette.IsNew:
 		// We've got an existing cassette, return what we've got
 		return rec.cassette.GetInteraction(r)
-	case rec.options.Mode == ModePassthrough:
+	case rec.mode == ModePassthrough:
 		// Passthrough requests always hit the original endpoint
 		break
-	case (rec.options.Mode == ModeRecordOnly || rec.options.Mode == ModeRecordOnce) && rec.cassette.ReplayableInteractions:
+	case (rec.mode == ModeRecordOnly || rec.mode == ModeRecordOnce) && rec.cassette.ReplayableInteractions:
 		// When running with replayable interactions look for
 		// existing interaction first, so we avoid hitting
 		// multiple times the same endpoint.
@@ -433,12 +491,12 @@ func (rec *Recorder) Stop() error {
 
 	// Nothing to do for ModeReplayOnly and ModePassthrough here
 	switch {
-	case rec.options.Mode == ModeRecordOnly || rec.options.Mode == ModeReplayWithNewEpisodes:
+	case rec.mode == ModeRecordOnly || rec.mode == ModeReplayWithNewEpisodes:
 		if err := rec.persistCassette(); err != nil {
 			return err
 		}
 
-	case rec.options.Mode == ModeRecordOnce && !cassetteExists:
+	case rec.mode == ModeRecordOnce && !cassetteExists:
 		if err := rec.persistCassette(); err != nil {
 			return err
 		}
@@ -480,26 +538,10 @@ func (rec *Recorder) applyHooks(i *cassette.Interaction, kind HookKind) error {
 	return nil
 }
 
-// SetRealTransport can be used to configure the real HTTP transport
-// of the recorder.
-func (rec *Recorder) SetRealTransport(t http.RoundTripper) {
-	rec.options.RealTransport = t
-}
-
-// Block unsafe methods from ever being called with RealTransport.
-// The definition of "Safe Methods" comes from
-// https://datatracker.ietf.org/doc/html/rfc9110#name-safe-methods
-// and means that Safe Methods SHOULD NOT have side effects on the server.
-// The use case for this flag is to prevent unsafe methods being used when executing tests
-// thare are known to be "read-only".
-func (rec *Recorder) SetBlockRealTransportUnsafeMethods(value bool) {
-	rec.options.BlockRealTransportUnsafeMethods = value
-}
-
-// RoundTrip implements the http.RoundTripper interface
+// RoundTrip implements the [http.RoundTripper] interface
 func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Passthrough mode, use real transport
-	if rec.options.Mode == ModePassthrough {
+	if rec.mode == ModePassthrough {
 		return rec.getRoundTripper().RoundTrip(req)
 	}
 
@@ -525,7 +567,7 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, req.Context().Err()
 	default:
 		// Apply the duration defined in the interaction
-		if !rec.options.SkipRequestLatency {
+		if !rec.skipRequestLatency {
 			<-time.After(interaction.Response.Duration)
 		}
 
@@ -533,24 +575,15 @@ func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 }
 
-// CancelRequest implements the
-// github.com/coreos/etcd/client.CancelableTransport interface
-func (rec *Recorder) CancelRequest(req *http.Request) {
-	type cancelableTransport interface {
-		CancelRequest(req *http.Request)
-	}
-	if ct, ok := rec.getRoundTripper().(cancelableTransport); ok {
-		ct.CancelRequest(req)
-	}
-}
-
 // SetMatcher sets a function to match requests against recorded HTTP
 // interactions.
+// TODO: Make this one an option
 func (rec *Recorder) SetMatcher(matcher cassette.MatcherFunc) {
 	rec.cassette.Matcher = matcher
 }
 
 // OnRequestReplay sets a function to be called when replaying a request.
+// TODO: Make this one an option
 func (rec *Recorder) OnRequestReplay(onRequestReplay cassette.OnRequestReplayFunc) {
 	rec.cassette.OnRequestReplay = onRequestReplay
 }
@@ -559,26 +592,14 @@ func (rec *Recorder) OnRequestReplay(onRequestReplay cassette.OnRequestReplayFun
 // be replayed or not. This is useful in cases when you need to hit
 // the same endpoint multiple times and want to replay the interaction
 // from the cassette, instead of hiting the endpoint.
+// TODO: Make this one an option
 func (rec *Recorder) SetReplayableInteractions(replayable bool) {
 	rec.cassette.ReplayableInteractions = replayable
 }
 
-// AddPassthrough appends a hook to determine if a request should be
-// ignored by the recorder.
-func (rec *Recorder) AddPassthrough(pass PassthroughFunc) {
-	rec.passthroughs = append(rec.passthroughs, pass)
-}
-
-// AddHook appends a hook to the recorder. Depending on the hook kind,
-// the handler will be invoked in different stages of the playback.
-func (rec *Recorder) AddHook(handler HookFunc, kind HookKind) {
-	hook := NewHook(handler, kind)
-	rec.hooks = append(rec.hooks, hook)
-}
-
 // Mode returns recorder state
 func (rec *Recorder) Mode() Mode {
-	return rec.options.Mode
+	return rec.mode
 }
 
 // GetDefaultClient returns an HTTP client with a pre-configured
@@ -610,11 +631,11 @@ func (rec *Recorder) IsNewCassette() bool {
 // considered to be recording for these modes.
 func (rec *Recorder) IsRecording() bool {
 	switch {
-	case rec.options.Mode == ModeRecordOnly || rec.options.Mode == ModeReplayWithNewEpisodes:
+	case rec.mode == ModeRecordOnly || rec.mode == ModeReplayWithNewEpisodes:
 		return true
-	case rec.options.Mode == ModeReplayOnly || rec.options.Mode == ModePassthrough:
+	case rec.mode == ModeReplayOnly || rec.mode == ModePassthrough:
 		return false
-	case rec.options.Mode == ModeRecordOnce && rec.IsNewCassette():
+	case rec.mode == ModeRecordOnce && rec.IsNewCassette():
 		return true
 	default:
 		return false
