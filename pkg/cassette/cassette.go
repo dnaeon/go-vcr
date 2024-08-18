@@ -245,14 +245,6 @@ func (m *matcher) bodyMatches(r *http.Request, i Request) bool {
 	return true
 }
 
-func (m *matcher) cloneHeader(h http.Header) http.Header {
-	r := http.Header{}
-	for key, value := range h {
-		r[key] = value
-	}
-	return r
-}
-
 func (m *matcher) matcher(r *http.Request, i Request) bool {
 
 	if r.Method != i.Method {
@@ -276,9 +268,9 @@ func (m *matcher) matcher(r *http.Request, i Request) bool {
 	}
 
 	if m.opts.IgnoreUserAgent {
-		requestHeader := m.cloneHeader(r.Header)
+		requestHeader := r.Header.Clone()
 		delete(requestHeader, "User-Agent")
-		cassetteRequestHeaders := m.cloneHeader(i.Headers)
+		cassetteRequestHeaders := i.Headers.Clone()
 		delete(cassetteRequestHeaders, "User-Agent")
 		if !m.deepEqualContents(requestHeader, cassetteRequestHeaders) {
 			return false
