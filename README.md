@@ -27,7 +27,7 @@ need to re-create your tests cassettes.
 Please check the [examples](./examples) directory from this repo for complete
 and ready to run examples.
 
-You can also refer to the [test cases](./recorder/recorder_test.go) for
+You can also refer to the [test cases](./pkg/recorder/recorder_test.go) for
 additional examples.
 
 ## Custom Request Matching
@@ -38,7 +38,8 @@ function.
 
 For example, the following matcher will match on method, URL and body:
 
-```go
+``` go
+
 func customMatcher(r *http.Request, i cassette.Request) bool {
 	if r.Body == nil || r.Body == http.NoBody {
 		return cassette.DefaultMatcher(r, i)
@@ -60,8 +61,8 @@ func customMatcher(r *http.Request, i cassette.Request) bool {
 
 // Recorder options
 opts := []recorder.Option{
-		recorder.WithCassette("fixtures/matchers"),
-		recorder.WithMatcher(customMatcher),
+	recorder.WithCassette("fixtures/matchers"),
+	recorder.WithMatcher(customMatcher),
 }
 
 rec, err := recorder.New(opts...)
@@ -74,7 +75,6 @@ client := rec.GetDefaultClient()
 resp, err := client.Get("https://www.google.com/")
 
 ...
-}
 ```
 
 ## Hooks
@@ -102,17 +102,17 @@ playback. The supported hook kinds are `AfterCaptureHook`, `BeforeSaveHook`,
 Here is an example that removes the `Authorization` header from all requests
 right after capturing a new interaction.
 
-```go
+``` go
 // A hook which removes Authorization headers from all requests
 hook := func(i *cassette.Interaction) error {
-        delete(i.Request.Headers, "Authorization")
-	    return nil
+	delete(i.Request.Headers, "Authorization")
+	return nil
 }
 
 // Recorder options
 opts := []recorder.Option{
-		recorder.WithCassette("fixtures/filters"),
-		recorder.WithHook(hook, recorder.AfterCaptureHook),
+	recorder.WithCassette("fixtures/filters"),
+	recorder.WithHook(hook, recorder.AfterCaptureHook),
 }
 
 r, err := recorder.New(opts...)
@@ -120,6 +120,8 @@ if err != nil {
 	log.Fatal(err)
 }
 defer r.Stop() // Make sure recorder is stopped once done with it
+
+...
 ```
 
 Hooks added using `recorder.AfterCaptureHook` are applied right after an
@@ -136,7 +138,7 @@ In such cases you would want to modify the recorded interactions right before
 they are saved on disk. For that purpose you should be using a `BeforeSaveHook`,
 e.g.
 
-```go
+``` go
 // Your test code will continue to see the real access token and
 // it is redacted before the recorded interactions are saved on disk
 hook := func(i *cassette.Interaction) error {
@@ -149,8 +151,8 @@ hook := func(i *cassette.Interaction) error {
 
 // Recorder options
 opts := []recorder.Option{
-		recorder.WithCassette("fixtures/filters"),
-		recorder.WithHook(hook, recorder.BeforeSaveHook),
+	recorder.WithCassette("fixtures/filters"),
+	recorder.WithHook(hook, recorder.BeforeSaveHook),
 }
 
 r, err := recorder.New(opts...)
@@ -158,6 +160,8 @@ if err != nil {
 	log.Fatal(err)
 }
 defer r.Stop() // Make sure recorder is stopped once done with it
+
+...
 ```
 
 ## Passing Through Requests
@@ -171,15 +175,15 @@ recorder.
 
 Here's an example to pass through requests to a specific endpoint:
 
-```go
+``` go
 passthrough := func(req *http.Request) bool {
-    return req.URL.Path == "/login"
+	return req.URL.Path == "/login"
 }
 
 // Recorder options
 opts := []recorder.Option{
-		recorder.WithCassette("fixtures/filters"),
-		recorder.WithPassthrough(passthrough),
+	recorder.WithCassette("fixtures/filters"),
+	recorder.WithPassthrough(passthrough),
 }
 
 r, err := recorder.New(opts...)
