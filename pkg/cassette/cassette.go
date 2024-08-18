@@ -48,22 +48,19 @@ const (
 )
 
 var (
-	// ErrInteractionNotFound indicates that a requested
-	// interaction was not found in the cassette file
+	// ErrInteractionNotFound indicates that a requested interaction was not
+	// found in the cassette file.
 	ErrInteractionNotFound = errors.New("requested interaction not found")
 
-	// ErrCassetteNotFound indicates that a requested
-	// casette doesn't exist (only in Replaying mode)
+	// ErrCassetteNotFound indicates that a requested casette doesn't exist.
 	ErrCassetteNotFound = errors.New("requested cassette not found")
 
-	// ErrUnsupportedCassetteFormat is returned when attempting to
-	// use an older and potentially unsupported format of a
-	// cassette
+	// ErrUnsupportedCassetteFormat is returned when attempting to use an
+	// older and potentially unsupported format of a cassette.
 	ErrUnsupportedCassetteFormat = fmt.Errorf("required version of cassette is v%d", CassetteFormatVersion)
 )
 
-// Request represents a client request as recorded in the
-// cassette file
+// Request represents a client request as recorded in the cassette file.
 type Request struct {
 	Proto            string      `yaml:"proto"`
 	ProtoMajor       int         `yaml:"proto_major"`
@@ -91,8 +88,7 @@ type Request struct {
 	Method string `yaml:"method"`
 }
 
-// Response represents a server response as recorded in the
-// cassette file
+// Response represents a server response as recorded in the cassette file.
 type Response struct {
 	Proto            string      `yaml:"proto"`
 	ProtoMajor       int         `yaml:"proto_major"`
@@ -114,12 +110,12 @@ type Response struct {
 	// Response status code
 	Code int `yaml:"code"`
 
-	// Response duration (something like "100ms" or "10s")
+	// Response duration
 	Duration time.Duration `yaml:"duration"`
 }
 
-// Interaction type contains a pair of request/response for a
-// single HTTP interaction between a client and a server
+// Interaction type contains a pair of request/response for a single HTTP
+// interaction between a client and a server.
 type Interaction struct {
 	// ID is the id of the interaction
 	ID int `yaml:"id"`
@@ -130,13 +126,12 @@ type Interaction struct {
 	// Response is the recorded response
 	Response Response `yaml:"response"`
 
-	// DiscardOnSave if set to true will discard the interaction
-	// as a whole and it will not be part of the final
-	// interactions when saving the cassette on disk.
+	// DiscardOnSave if set to true will discard the interaction as a whole
+	// and it will not be part of the final interactions when saving the
+	// cassette on disk.
 	DiscardOnSave bool `yaml:"-"`
 
-	// replayed is true when this interaction has been played
-	// already.
+	// replayed is true when this interaction has been played already.
 	replayed bool `yaml:"-"`
 }
 
@@ -146,8 +141,8 @@ func (i *Interaction) WasReplayed() bool {
 	return i.replayed
 }
 
-// GetHTTPRequest converts the recorded interaction request to
-// http.Request instance
+// GetHTTPRequest converts the recorded interaction request to http.Request
+// instance.
 func (i *Interaction) GetHTTPRequest() (*http.Request, error) {
 	url, err := url.Parse(i.Request.URL)
 	if err != nil {
@@ -174,8 +169,8 @@ func (i *Interaction) GetHTTPRequest() (*http.Request, error) {
 	return req, nil
 }
 
-// GetHTTPResponse converts the recorded interaction response to
-// http.Response instance
+// GetHTTPResponse converts the recorded interaction response to http.Response
+// instance.
 func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
 	req, err := i.GetHTTPRequest()
 	if err != nil {
@@ -201,17 +196,17 @@ func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
 	return resp, nil
 }
 
-// MatcherFunc function returns true when the actual request matches a
-// single HTTP interaction's request according to the function's own
-// criteria.
+// MatcherFunc is a predicate, which returns true when the actual request
+// matches an interaction from the cassette.
 type MatcherFunc func(*http.Request, Request) bool
 
 type matcher struct {
 	opts *MatcherFuncOpts
 }
 
-// Similar to reflect.DeepEqual, but considers the contents of collections, so {} and nil would be
-// considered equal. works with Array, Map, Slice, or pointer to Array.
+// Similar to reflect.DeepEqual, but considers the contents of collections, so
+// {} and nil would be considered equal. works with Array, Map, Slice, or
+// pointer to Array.
 func (m *matcher) deepEqualContents(x, y any) bool {
 	if reflect.ValueOf(x).IsNil() {
 		if reflect.ValueOf(y).IsNil() {
