@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"testing"
 
-	"gopkg.in/dnaeon/go-vcr.v3/cassette"
-	"gopkg.in/dnaeon/go-vcr.v3/recorder"
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
 )
 
 func TestMiddleware(t *testing.T) {
@@ -18,26 +18,24 @@ func TestMiddleware(t *testing.T) {
 	// In a real-world scenario, the recorder will run outside of unit tests
 	// since you want to be able to record real application behavior
 	t.Run("RecordRealInteractionsWithMiddleware", func(t *testing.T) {
-		rec, err := recorder.NewWithOptions(&recorder.Options{
-			CassetteName:       cassetteName,
-			Mode:               recorder.ModeRecordOnly,
-			SkipRequestLatency: true,
-		})
+		rec, err := recorder.New(
+			recorder.WithCassette(cassetteName),
+			recorder.WithMode(recorder.ModeRecordOnly),
+			// Use a BeforeSaveHook to remove host, remote_addr, and duration
+			// since they change whenever the test runs
+			recorder.WithHook(func(i *cassette.Interaction) error {
+				i.Request.Host = ""
+				i.Request.RemoteAddr = ""
+				i.Response.Duration = 0
+				return nil
+			}, recorder.BeforeSaveHook),
+		)
 		if err != nil {
 			t.Errorf("error creating recorder: %v", err)
 		}
 
-		// Use a BeforeSaveHook to remove host, remote_addr, and duration
-		// since they change whenever the test runs
-		rec.AddHook(func(i *cassette.Interaction) error {
-			i.Request.Host = ""
-			i.Request.RemoteAddr = ""
-			i.Response.Duration = 0
-			return nil
-		}, recorder.BeforeSaveHook)
-
 		// Create the server handler with recorder middleware
-		handler := createHandler(rec.Middleware)
+		handler := createHandler(rec.HTTPMiddleware)
 		defer rec.Stop()
 
 		server := httptest.NewServer(handler)

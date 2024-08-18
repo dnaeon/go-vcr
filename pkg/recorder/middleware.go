@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 )
 
-// Middleware intercepts and records all incoming requests and the server's response
-func (rec *Recorder) Middleware(next http.Handler) http.Handler {
+// HTTPMiddleware intercepts and records all incoming requests and the server's response
+func (rec *Recorder) HTTPMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ww := newPassthrough(w)
 
