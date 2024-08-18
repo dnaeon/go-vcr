@@ -43,11 +43,8 @@ import (
 
 // Cassette format versions
 const (
-	// Version 1 of the cassette format
-	CassetteFormatV1 = 1
-
-	// Version 2 of the cassette format
-	CassetteFormatV2 = 2
+	// CassetteFormatVersion is the supported cassette version.
+	CassetteFormatVersion = 2
 )
 
 var (
@@ -62,7 +59,7 @@ var (
 	// ErrUnsupportedCassetteFormat is returned when attempting to
 	// use an older and potentially unsupported format of a
 	// cassette
-	ErrUnsupportedCassetteFormat = fmt.Errorf("required version of cassette is v%d", CassetteFormatV2)
+	ErrUnsupportedCassetteFormat = fmt.Errorf("required version of cassette is v%d", CassetteFormatVersion)
 )
 
 // Request represents a client request as recorded in the
@@ -404,7 +401,7 @@ func New(name string) *Cassette {
 	c := &Cassette{
 		Name:                   name,
 		File:                   fmt.Sprintf("%s.yaml", name),
-		Version:                CassetteFormatV2,
+		Version:                CassetteFormatVersion,
 		Interactions:           make([]*Interaction, 0),
 		Matcher:                DefaultMatcher,
 		OnRequestReplay:        DefaultOnRequestReplayFunc,
@@ -429,7 +426,7 @@ func Load(name string) (*Cassette, error) {
 		return nil, err
 	}
 
-	if c.Version != CassetteFormatV2 {
+	if c.Version != CassetteFormatVersion {
 		return nil, ErrUnsupportedCassetteFormat
 	}
 	c.nextInteractionId = len(c.Interactions)
