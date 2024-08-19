@@ -24,8 +24,52 @@ need to re-create your tests cassettes.
 
 ## Usage
 
-Please check the [examples](./examples) directory from this repo for complete
-and ready to run examples.
+A quick example of using `go-vcr`.
+
+``` go
+package helloworld_test
+
+import (
+	"testing"
+
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
+)
+
+func TestHelloWorld(t *testing.T) {
+	opts := []recorder.Option{
+		// Store the recorded interactions in this cassette
+		recorder.WithCassette("fixtures/hello-world"),
+	}
+
+	// Create our recorder
+	r, err := recorder.New(opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop() // Make sure recorder is stopped once done with it
+
+	client := r.GetDefaultClient()
+	url := "https://go.dev/"
+
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("Failed to get url %s: %s", url, err)
+	}
+
+	t.Logf("GET %s: %d\n", url, resp.StatusCode)
+}
+```
+
+Running this test code for the first time will result in creating the
+`fixtures/hello-world.yaml` cassette, which will contain the recorded HTTP
+interaction between our HTTP client and the remote server.
+
+When we execute this test next time, what would happen is that `go-vcr` will
+replay the already recorded HTTP interactions from the cassette, instead of
+making actual external calls.
+
+Please also check the [examples](./examples) directory from this repo for
+complete and ready to run examples.
 
 You can also refer to the [test cases](./pkg/recorder/recorder_test.go) for
 additional examples.
@@ -200,7 +244,8 @@ defer r.Stop() // Make sure recorder is stopped once done with it
 VCR testing can also be used for creating server-side tests. Use the
 `recorder.HTTPMiddleware` with an HTTP handler in order to create fixtures from
 incoming requests and the handler's responses. Then, these requests can be
-replayed and compared against the recorded responses to create a regression test.
+replayed and compared against the recorded responses to create a regression
+test.
 
 Rather than mocking/recording external HTTP interactions, this will record and
 replay _incoming_ interactions with your application's HTTP server.
