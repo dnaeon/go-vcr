@@ -159,7 +159,7 @@ func TestRecordOnceMode(t *testing.T) {
 	}
 
 	// Create recorder
-	rec, err := recorder.New(recorder.WithCassette(cassPath))
+	rec, err := recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestRecordOnceMode(t *testing.T) {
 	}
 
 	// Re-run without the actual server
-	rec, err = recorder.New(recorder.WithCassette(cassPath))
+	rec, err = recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,10 +239,9 @@ func TestRecordOnceMode(t *testing.T) {
 
 func TestReplayOnlyModeFailsWithMissingCassette(t *testing.T) {
 	opts := []recorder.Option{
-		recorder.WithCassette("missing_cassette_file"),
 		recorder.WithMode(recorder.ModeReplayOnly),
 	}
-	_, err := recorder.New(opts...)
+	_, err := recorder.New("missing_cassette_file", opts...)
 	if !errors.Is(err, cassette.ErrCassetteNotFound) {
 		t.Fatalf("expected cassette.ErrCassetteNotFound, got %v", err)
 	}
@@ -257,7 +256,7 @@ func TestReplayWithContextTimeout(t *testing.T) {
 	server := newEchoHttpServer()
 	serverUrl := server.URL
 
-	rec, err := recorder.New(recorder.WithCassette(cassPath))
+	rec, err := recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +300,7 @@ func TestReplayWithContextTimeout(t *testing.T) {
 	server.Close()
 	rec.Stop()
 
-	rec, err = recorder.New(recorder.WithCassette(cassPath))
+	rec, err = recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +355,7 @@ func TestRecordOnceWithMissingEpisodes(t *testing.T) {
 	}
 
 	// Create recorder
-	rec, err := recorder.New(recorder.WithCassette(cassPath))
+	rec, err := recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +381,7 @@ func TestRecordOnceWithMissingEpisodes(t *testing.T) {
 	server.Close()
 	rec.Stop()
 
-	rec, err = recorder.New(recorder.WithCassette(cassPath))
+	rec, err = recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,10 +456,9 @@ func TestReplayWithNewEpisodes(t *testing.T) {
 
 	// Create recorder
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithMode(recorder.ModeReplayWithNewEpisodes),
 	}
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,7 +482,7 @@ func TestReplayWithNewEpisodes(t *testing.T) {
 
 	// Re-run again with new HTTP interactions
 	rec.Stop()
-	rec, err = recorder.New(opts...)
+	rec, err = recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -562,10 +560,9 @@ func TestPassthroughMode(t *testing.T) {
 	}
 
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithMode(recorder.ModePassthrough),
 	}
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +627,6 @@ func TestPassthroughHandler(t *testing.T) {
 
 	// Create recorder
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithPassthrough(func(r *http.Request) bool {
 			// Passthrough requests with POST method and "passthrough request" body
 			if r.Body == nil {
@@ -645,7 +641,7 @@ func TestPassthroughHandler(t *testing.T) {
 			return r.Method == http.MethodPost && b.String() == "passthrough request"
 		}),
 	}
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -729,11 +725,10 @@ func TestAfterCaptureHook(t *testing.T) {
 	}
 
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithHook(redactHook, recorder.AfterCaptureHook),
 	}
 
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -808,10 +803,9 @@ func TestBeforeSaveHook(t *testing.T) {
 		return nil
 	}
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithHook(redactHook, recorder.BeforeSaveHook),
 	}
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -884,7 +878,7 @@ func TestBeforeResponseReplayHook(t *testing.T) {
 	}
 
 	// Create recorder
-	rec, err := recorder.New(recorder.WithCassette(cassPath))
+	rec, err := recorder.New(cassPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -922,10 +916,9 @@ func TestBeforeResponseReplayHook(t *testing.T) {
 	}
 
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithHook(hook, recorder.BeforeResponseReplayHook),
 	}
-	rec, err = recorder.New(opts...)
+	rec, err = recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -995,12 +988,11 @@ func TestReplayableInteractions(t *testing.T) {
 	}
 
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithReplayableInteractions(true),
 		recorder.WithHook(hook, recorder.OnRecorderStopHook),
 	}
 
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1069,10 +1061,9 @@ func TestRecordOnlyMode(t *testing.T) {
 
 	// Create recorder
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithMode(recorder.ModeRecordOnly),
 	}
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1171,11 +1162,10 @@ func TestBlockRealTransportUnsafeMethods(t *testing.T) {
 
 	// Create recorder
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithMode(recorder.ModeRecordOnly),
 		recorder.WithBlockUnsafeMethods(true),
 	}
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1194,10 +1184,9 @@ func TestBlockRealTransportUnsafeMethods(t *testing.T) {
 func TestInvalidRecorderMode(t *testing.T) {
 	// Create recorder
 	opts := []recorder.Option{
-		recorder.WithCassette("invalid_recorder_mode"),
 		recorder.WithMode(recorder.Mode(-42)),
 	}
-	_, err := recorder.New(opts...)
+	_, err := recorder.New("invalid_recorder_mode", opts...)
 	if err != recorder.ErrInvalidMode {
 		t.Fatal("expected recorder to fail with invalid mode")
 	}
@@ -1242,11 +1231,10 @@ func TestDiscardInteractionsOnSave(t *testing.T) {
 		return nil
 	}
 	opts := []recorder.Option{
-		recorder.WithCassette(cassPath),
 		recorder.WithHook(hook, recorder.AfterCaptureHook),
 	}
 
-	rec, err := recorder.New(opts...)
+	rec, err := recorder.New(cassPath, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,7 +19,7 @@ func TestMiddleware(t *testing.T) {
 	// since you want to be able to record real application behavior
 	t.Run("RecordRealInteractionsWithMiddleware", func(t *testing.T) {
 		rec, err := recorder.New(
-			recorder.WithCassette(cassetteName),
+			cassetteName,
 			recorder.WithMode(recorder.ModeRecordOnly),
 			// Use a BeforeSaveHook to remove host, remote_addr, and duration
 			// since they change whenever the test runs

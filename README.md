@@ -36,13 +36,8 @@ import (
 )
 
 func TestHelloWorld(t *testing.T) {
-	opts := []recorder.Option{
-		// Store the recorded interactions in this cassette
-		recorder.WithCassette("fixtures/hello-world"),
-	}
-
 	// Create our recorder
-	r, err := recorder.New(opts...)
+	r, err := recorder.New("fixtures/hello-world")
 	if err != nil {
 		t.Fatal(err)
 	}

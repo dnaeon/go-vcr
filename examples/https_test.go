@@ -34,10 +34,7 @@ import (
 
 func TestHTTPS(t *testing.T) {
 	// Start our recorder
-	opts := []recorder.Option{
-		recorder.WithCassette("fixtures/iana-reserved-domains"),
-	}
-	r, err := recorder.New(opts...)
+	r, err := recorder.New("fixtures/iana-reserved-domains")
 	if err != nil {
 		t.Fatal(err)
 	}

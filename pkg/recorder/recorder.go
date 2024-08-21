@@ -212,16 +212,6 @@ type Recorder struct {
 // Option is a function which configures the [Recorder].
 type Option func(r *Recorder)
 
-// WithCassette is an [Option], which configures the [Recorder] to use the given
-// cassette name.
-func WithCassette(name string) Option {
-	opt := func(r *Recorder) {
-		r.cassetteName = name
-	}
-
-	return opt
-}
-
 // WithMode is an [Option], which configures the [Recorder] to run in the
 // specified mode.
 func WithMode(mode Mode) Option {
@@ -311,8 +301,9 @@ func WithReplayableInteractions(val bool) Option {
 }
 
 // New creates a new [Recorder] and configures it using the provided options.
-func New(opts ...Option) (*Recorder, error) {
+func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	r := &Recorder{
+		cassetteName:           cassetteName,
 		mode:                   ModeRecordOnce,
 		realTransport:          http.DefaultTransport,
 		passthroughs:           make([]PassthroughFunc, 0),
