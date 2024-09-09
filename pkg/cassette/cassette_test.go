@@ -250,4 +250,22 @@ func TestMatcher(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("IgnoreAuthorization=true", func(t *testing.T) {
+		matcherFn := NewDefaultMatcher(WithIgnoreAuthorization(true))
+
+		t.Run("match", func(t *testing.T) {
+			r, i := getMatcherRequests(t)
+
+			r.Header = http.Header{
+				"Authorization": {"Bearer xyz"},
+			}
+
+			i.Headers = http.Header{}
+
+			if b := matcherFn(r, i); !b {
+				t.Fatalf("request should have matched")
+			}
+		})
+	})
 }

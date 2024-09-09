@@ -205,6 +205,9 @@ type defaultMatcher struct {
 	// If set to true, the default matcher will ignore matching on the
 	// User-Agent HTTP header.
 	ignoreUserAgent bool
+	// If set to true, the default matcher will ignore matching on the
+	// Authorization HTTP header.
+	ignoreAuthorization bool
 }
 
 // DefaultMatcherOption is a function which configures the default matcher.
@@ -215,6 +218,16 @@ type DefaultMatcherOption func(m *defaultMatcher)
 func WithIgnoreUserAgent(val bool) DefaultMatcherOption {
 	opt := func(m *defaultMatcher) {
 		m.ignoreUserAgent = val
+	}
+
+	return opt
+}
+
+// WithIgnoreAuthorization is a [DefaultMatcherOption], which configures the default
+// matcher to ignore matching on the Authorization HTTP header.
+func WithIgnoreAuthorization(val bool) DefaultMatcherOption {
+	opt := func(m *defaultMatcher) {
+		m.ignoreAuthorization = val
 	}
 
 	return opt
@@ -294,18 +307,21 @@ func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
 		return false
 	}
 
+	requestHeader := r.Header.Clone()
+	cassetteRequestHeaders := i.Headers.Clone()
+
 	if m.ignoreUserAgent {
-		requestHeader := r.Header.Clone()
 		delete(requestHeader, "User-Agent")
-		cassetteRequestHeaders := i.Headers.Clone()
 		delete(cassetteRequestHeaders, "User-Agent")
-		if !m.deepEqualContents(requestHeader, cassetteRequestHeaders) {
-			return false
-		}
-	} else {
-		if !m.deepEqualContents(r.Header, i.Headers) {
-			return false
-		}
+	}
+
+	if m.ignoreAuthorization {
+		delete(requestHeader, "Authorization")
+		delete(cassetteRequestHeaders, "Authorization")
+	}
+
+	if !m.deepEqualContents(requestHeader, cassetteRequestHeaders) {
+		return false
 	}
 
 	if !m.bodyMatches(r, i) {
