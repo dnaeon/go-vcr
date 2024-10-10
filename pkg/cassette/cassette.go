@@ -202,12 +202,9 @@ type MatcherFunc func(*http.Request, Request) bool
 // defaultMatcher is the default matcher used to match HTTP requests with
 // recorded interactions.
 type defaultMatcher struct {
-	// If set to true, the default matcher will ignore matching on the
-	// User-Agent HTTP header.
-	ignoreUserAgent bool
-	// If set to true, the default matcher will ignore matching on the
-	// Authorization HTTP header.
-	ignoreAuthorization bool
+	// If set, the default matcher will ignore matching on any of the
+	// defined headers.
+	ignoreHeaders []string
 }
 
 // DefaultMatcherOption is a function which configures the default matcher.
@@ -215,9 +212,9 @@ type DefaultMatcherOption func(m *defaultMatcher)
 
 // WithIgnoreUserAgent is a [DefaultMatcherOption], which configures the default
 // matcher to ignore matching on the User-Agent HTTP header.
-func WithIgnoreUserAgent(val bool) DefaultMatcherOption {
+func WithIgnoreUserAgent() DefaultMatcherOption {
 	opt := func(m *defaultMatcher) {
-		m.ignoreUserAgent = val
+		m.ignoreHeaders = append(m.ignoreHeaders, "User-Agent")
 	}
 
 	return opt
@@ -225,9 +222,19 @@ func WithIgnoreUserAgent(val bool) DefaultMatcherOption {
 
 // WithIgnoreAuthorization is a [DefaultMatcherOption], which configures the default
 // matcher to ignore matching on the Authorization HTTP header.
-func WithIgnoreAuthorization(val bool) DefaultMatcherOption {
+func WithIgnoreAuthorization() DefaultMatcherOption {
 	opt := func(m *defaultMatcher) {
-		m.ignoreAuthorization = val
+		m.ignoreHeaders = append(m.ignoreHeaders, "Authorization")
+	}
+
+	return opt
+}
+
+// WithIgnoreHeaders is a [DefaultMatcherOption], which configures the default
+// matcher to ignore matching on the defined HTTP headers.
+func WithIgnoreHeaders(val ...string) DefaultMatcherOption {
+	opt := func(m *defaultMatcher) {
+		m.ignoreHeaders = append(m.ignoreHeaders, val...)
 	}
 
 	return opt
@@ -310,14 +317,9 @@ func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
 	requestHeader := r.Header.Clone()
 	cassetteRequestHeaders := i.Headers.Clone()
 
-	if m.ignoreUserAgent {
-		delete(requestHeader, "User-Agent")
-		delete(cassetteRequestHeaders, "User-Agent")
-	}
-
-	if m.ignoreAuthorization {
-		delete(requestHeader, "Authorization")
-		delete(cassetteRequestHeaders, "Authorization")
+	for _, header := range m.ignoreHeaders {
+		delete(requestHeader, header)
+		delete(cassetteRequestHeaders, header)
 	}
 
 	if !m.deepEqualContents(requestHeader, cassetteRequestHeaders) {

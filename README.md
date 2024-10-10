@@ -152,7 +152,7 @@ hook := func(i *cassette.Interaction) error {
 opts := []recorder.Option{
 	recorder.WithCassette("fixtures/filters"),
 	recorder.WithHook(hook, recorder.AfterCaptureHook),
-	recorder.WithMatcher(cassette.NewDefaultMatcher(cassette.WithIgnoreAuthorization(true))),
+	recorder.WithMatcher(cassette.NewDefaultMatcher(cassette.WithIgnoreAuthorization())),
 }
 
 r, err := recorder.New(opts...)
