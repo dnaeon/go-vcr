@@ -231,8 +231,8 @@ func TestMatcher(t *testing.T) {
 		})
 	})
 
-	t.Run("IgnoreUserAgent=true", func(t *testing.T) {
-		matcherFn := NewDefaultMatcher(WithIgnoreUserAgent(true))
+	t.Run("IgnoreUserAgent", func(t *testing.T) {
+		matcherFn := NewDefaultMatcher(WithIgnoreUserAgent())
 
 		t.Run("match", func(t *testing.T) {
 			r, i := getMatcherRequests(t)
@@ -251,8 +251,8 @@ func TestMatcher(t *testing.T) {
 		})
 	})
 
-	t.Run("IgnoreAuthorization=true", func(t *testing.T) {
-		matcherFn := NewDefaultMatcher(WithIgnoreAuthorization(true))
+	t.Run("IgnoreAuthorization", func(t *testing.T) {
+		matcherFn := NewDefaultMatcher(WithIgnoreAuthorization())
 
 		t.Run("match", func(t *testing.T) {
 			r, i := getMatcherRequests(t)
@@ -262,6 +262,30 @@ func TestMatcher(t *testing.T) {
 			}
 
 			i.Headers = http.Header{}
+
+			if b := matcherFn(r, i); !b {
+				t.Fatalf("request should have matched")
+			}
+		})
+	})
+
+	t.Run("IgnoreHeaders", func(t *testing.T) {
+		matcherFn := NewDefaultMatcher(WithIgnoreHeaders("Header-One", "Header-Two"), WithIgnoreUserAgent(), WithIgnoreAuthorization())
+
+		t.Run("match", func(t *testing.T) {
+			r, i := getMatcherRequests(t)
+
+			r.Header = http.Header{
+				"Header-One": {"foo"},
+				"Header-Two": {"foo"},
+				"User-Agent": {"foo", "bar"},
+			}
+
+			i.Headers = http.Header{
+				"Header-One":    {"bar"},
+				"Header-Two":    {"bar"},
+				"Authorization": {"Bearer xyz"},
+			}
 
 			if b := matcherFn(r, i); !b {
 				t.Fatalf("request should have matched")
