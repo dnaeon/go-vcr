@@ -459,6 +459,11 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 	c.Lock()
 	defer c.Unlock()
+	if r.Body == nil {
+		// causes an error in the matcher when we try to do r.ParseForm if r.Body is nil
+		// r.ParseForm returns missing form body error
+		r.Body = http.NoBody
+	}
 	for _, i := range c.Interactions {
 		if (c.ReplayableInteractions || !i.replayed) && c.Matcher(r, i.Request) {
 			i.replayed = true
