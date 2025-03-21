@@ -44,11 +44,16 @@ type payload struct {
 }
 
 func TestJSON(t *testing.T) {
-	r, err := recorder.New("fixtures/json-content-type")
+	r, err := recorder.New("testdata/json-content-type")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Stop() // Make sure recorder is stopped once done with it
+	t.Cleanup(func() {
+		// Make sure recorder is stopped once done with it.
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	if r.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("Recorder should be in ModeRecordOnce")
@@ -57,6 +62,9 @@ func TestJSON(t *testing.T) {
 	client := r.GetDefaultClient()
 	url := "https://httpbin.org/anything"
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Authorization", "Bearer foo")
 	resp, err := client.Do(req)

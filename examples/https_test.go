@@ -34,11 +34,16 @@ import (
 
 func TestHTTPS(t *testing.T) {
 	// Start our recorder
-	r, err := recorder.New("fixtures/iana-reserved-domains")
+	r, err := recorder.New("testdata/iana-reserved-domains")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Stop() // Make sure recorder is stopped once done with it
+	t.Cleanup(func() {
+		// Make sure recorder is stopped once done with it.
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
 	if r.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("Recorder should be in ModeRecordOnce")
 	}

@@ -7,13 +7,7 @@ interactions:
         proto_major: 1
         proto_minor: 1
         content_length: 0
-        transfer_encoding: []
-        trailer: {}
         host: httpbin.org
-        remote_addr: ""
-        request_uri: ""
-        body: ""
-        form: {}
         headers:
             Authorization:
                 - Bearer foo
@@ -25,11 +19,8 @@ interactions:
         proto: HTTP/2.0
         proto_major: 2
         proto_minor: 0
-        transfer_encoding: []
-        trailer: {}
         content_length: 438
-        uncompressed: false
-        body: "{\n  \"args\": {}, \n  \"data\": \"\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept-Encoding\": \"gzip\", \n    \"Authorization\": \"Bearer foo\", \n    \"Content-Type\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Go-http-client/2.0\", \n    \"X-Amzn-Trace-Id\": \"Root=1-66c1f384-77143b583411a8bc4369da5e\"\n  }, \n  \"json\": null, \n  \"method\": \"GET\", \n  \"origin\": \"208.127.57.175\", \n  \"url\": \"https://httpbin.org/anything\"\n}\n"
+        body: "{\n  \"args\": {}, \n  \"data\": \"\", \n  \"files\": {}, \n  \"form\": {}, \n  \"headers\": {\n    \"Accept-Encoding\": \"gzip\", \n    \"Authorization\": \"Bearer foo\", \n    \"Content-Type\": \"application/json\", \n    \"Host\": \"httpbin.org\", \n    \"User-Agent\": \"Go-http-client/2.0\", \n    \"X-Amzn-Trace-Id\": \"Root=1-67ddb5d2-29e2b47e716ca0e131f1d3ff\"\n  }, \n  \"json\": null, \n  \"method\": \"GET\", \n  \"origin\": \"209.226.145.26\", \n  \"url\": \"https://httpbin.org/anything\"\n}\n"
         headers:
             Access-Control-Allow-Credentials:
                 - "true"
@@ -40,9 +31,9 @@ interactions:
             Content-Type:
                 - application/json
             Date:
-                - Sun, 18 Aug 2024 13:13:40 GMT
+                - Fri, 21 Mar 2025 18:54:10 GMT
             Server:
                 - gunicorn/19.9.0
         status: 200 OK
         code: 200
-        duration: 2.086618375s
+        duration: 83.984896ms

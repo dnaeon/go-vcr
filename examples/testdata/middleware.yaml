@@ -7,13 +7,8 @@ interactions:
         proto_major: 1
         proto_minor: 1
         content_length: 0
-        transfer_encoding: []
-        trailer: {}
         host: ""
-        remote_addr: ""
         request_uri: /request1
-        body: ""
-        form: {}
         headers:
             Accept-Encoding:
                 - gzip
@@ -25,10 +20,7 @@ interactions:
         proto: HTTP/1.1
         proto_major: 1
         proto_minor: 1
-        transfer_encoding: []
-        trailer: {}
         content_length: -1
-        uncompressed: false
         body: OK
         headers:
             Content-Type:
@@ -44,13 +36,8 @@ interactions:
         proto_major: 1
         proto_minor: 1
         content_length: 0
-        transfer_encoding: []
-        trailer: {}
         host: ""
-        remote_addr: ""
         request_uri: /request2?query=example
-        body: ""
-        form: {}
         headers:
             Accept-Encoding:
                 - gzip
@@ -62,10 +49,7 @@ interactions:
         proto: HTTP/1.1
         proto_major: 1
         proto_minor: 1
-        transfer_encoding: []
-        trailer: {}
         content_length: -1
-        uncompressed: false
         body: |-
             query=example
             OK
@@ -83,10 +67,7 @@ interactions:
         proto_major: 1
         proto_minor: 1
         content_length: 9
-        transfer_encoding: []
-        trailer: {}
         host: ""
-        remote_addr: ""
         request_uri: /postform
         body: key=value
         form:
@@ -107,10 +88,7 @@ interactions:
         proto: HTTP/1.1
         proto_major: 1
         proto_minor: 1
-        transfer_encoding: []
-        trailer: {}
         content_length: -1
-        uncompressed: false
         body: key=value
         headers:
             Content-Type:
@@ -126,13 +104,9 @@ interactions:
         proto_major: 1
         proto_minor: 1
         content_length: 15
-        transfer_encoding: []
-        trailer: {}
         host: ""
-        remote_addr: ""
         request_uri: /postdata
         body: '{"key":"value"}'
-        form: {}
         headers:
             Accept-Encoding:
                 - gzip
@@ -148,10 +122,7 @@ interactions:
         proto: HTTP/1.1
         proto_major: 1
         proto_minor: 1
-        transfer_encoding: []
-        trailer: {}
         content_length: -1
-        uncompressed: false
         body: '{"key":"value"}'
         headers:
             Content-Type:

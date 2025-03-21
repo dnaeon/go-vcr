@@ -13,7 +13,7 @@ import (
 )
 
 func TestMiddleware(t *testing.T) {
-	cassetteName := "fixtures/middleware"
+	cassetteName := "testdata/middleware"
 
 	// In a real-world scenario, the recorder will run outside of unit tests
 	// since you want to be able to record real application behavior
@@ -36,7 +36,12 @@ func TestMiddleware(t *testing.T) {
 
 		// Create the server handler with recorder middleware
 		handler := createHandler(rec.HTTPMiddleware)
-		defer rec.Stop()
+		t.Cleanup(func() {
+			// Make sure recorder is stopped once done with it.
+			if err := rec.Stop(); err != nil {
+				t.Error(err)
+			}
+		})
 
 		server := httptest.NewServer(handler)
 		defer server.Close()

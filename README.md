@@ -30,6 +30,8 @@ A quick example of using `go-vcr`.
 package helloworld_test
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
@@ -37,14 +39,19 @@ import (
 
 func TestHelloWorld(t *testing.T) {
 	// Create our recorder
-	r, err := recorder.New("fixtures/hello-world")
+	r, err := recorder.New(filepath.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Stop() // Make sure recorder is stopped once done with it
+	t.Cleanup(func() {
+		// Make sure recorder is stopped once done with it.
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	client := r.GetDefaultClient()
-	url := "https://go.dev/"
+	url := "https://go.dev/VERSION?m=text"
 
 	resp, err := client.Get(url)
 	if err != nil {
@@ -56,7 +63,7 @@ func TestHelloWorld(t *testing.T) {
 ```
 
 Running this test code for the first time will result in creating the
-`fixtures/hello-world.yaml` cassette, which will contain the recorded HTTP
+`testdata/TestHelloWorld.yaml` cassette, which will contain the recorded HTTP
 interaction between our HTTP client and the remote server.
 
 When we execute this test next time, what would happen is that `go-vcr` will
@@ -100,7 +107,7 @@ func customMatcher(r *http.Request, i cassette.Request) bool {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("fixtures/matchers"),
+	recorder.WithCassette("testdata/matchers"),
 	recorder.WithMatcher(customMatcher),
 }
 
@@ -150,7 +157,7 @@ hook := func(i *cassette.Interaction) error {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("fixtures/filters"),
+	recorder.WithCassette("testdata/filters"),
 	recorder.WithHook(hook, recorder.AfterCaptureHook),
 	recorder.WithMatcher(cassette.NewDefaultMatcher(cassette.WithIgnoreAuthorization())),
 }
@@ -191,7 +198,7 @@ hook := func(i *cassette.Interaction) error {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("fixtures/filters"),
+	recorder.WithCassette("testdata/filters"),
 	recorder.WithHook(hook, recorder.BeforeSaveHook),
 }
 
@@ -222,7 +229,7 @@ passthrough := func(req *http.Request) bool {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("fixtures/filters"),
+	recorder.WithCassette("testdata/filters"),
 	recorder.WithPassthrough(passthrough),
 }
 

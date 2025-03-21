@@ -34,17 +34,22 @@ import (
 
 func TestSimple(t *testing.T) {
 	// Start our recorder
-	r, err := recorder.New("fixtures/golang-org")
+	r, err := recorder.New("testdata/go-dev")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Stop() // Make sure recorder is stopped once done with it
+	t.Cleanup(func() {
+		// Make sure recorder is stopped once done with it.
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	if r.Mode() != recorder.ModeRecordOnce {
 		t.Fatal("Recorder should be in ModeRecordOnce")
 	}
 	client := r.GetDefaultClient()
-	url := "http://golang.org/"
+	url := "https://go.dev/VERSION?m=text"
 	resp, err := client.Get(url)
 	if err != nil {
 		t.Fatalf("Failed to get url %s: %s", url, err)
@@ -55,10 +60,8 @@ func TestSimple(t *testing.T) {
 		t.Fatalf("Failed to read response body: %s", err)
 	}
 
-	wantTitle := "<title>The Go Programming Language</title>"
-	bodyContent := string(body)
-
-	if !strings.Contains(bodyContent, wantTitle) {
-		t.Errorf("Title %s not found in response", wantTitle)
+	want := "go1."
+	if s := string(body); !strings.HasPrefix(s, want) {
+		t.Errorf("want: %q\ngot: %q", want, s)
 	}
 }
