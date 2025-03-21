@@ -65,20 +65,20 @@ type Request struct {
 	ProtoMajor       int         `yaml:"proto_major"`
 	ProtoMinor       int         `yaml:"proto_minor"`
 	ContentLength    int64       `yaml:"content_length"`
-	TransferEncoding []string    `yaml:"transfer_encoding"`
-	Trailer          http.Header `yaml:"trailer"`
+	TransferEncoding []string    `yaml:"transfer_encoding,omitempty"`
+	Trailer          http.Header `yaml:"trailer,omitempty"`
 	Host             string      `yaml:"host"`
-	RemoteAddr       string      `yaml:"remote_addr"`
-	RequestURI       string      `yaml:"request_uri"`
+	RemoteAddr       string      `yaml:"remote_addr,omitempty"`
+	RequestURI       string      `yaml:"request_uri,omitempty"`
 
 	// Body of request
-	Body string `yaml:"body"`
+	Body string `yaml:"body,omitempty"`
 
 	// Form values
-	Form url.Values `yaml:"form"`
+	Form url.Values `yaml:"form,omitempty"`
 
 	// Request headers
-	Headers http.Header `yaml:"headers"`
+	Headers http.Header `yaml:"headers,omitempty"`
 
 	// Request URL
 	URL string `yaml:"url"`
@@ -92,10 +92,10 @@ type Response struct {
 	Proto            string      `yaml:"proto"`
 	ProtoMajor       int         `yaml:"proto_major"`
 	ProtoMinor       int         `yaml:"proto_minor"`
-	TransferEncoding []string    `yaml:"transfer_encoding"`
-	Trailer          http.Header `yaml:"trailer"`
+	TransferEncoding []string    `yaml:"transfer_encoding,omitempty"`
+	Trailer          http.Header `yaml:"trailer,omitempty"`
 	ContentLength    int64       `yaml:"content_length"`
-	Uncompressed     bool        `yaml:"uncompressed"`
+	Uncompressed     bool        `yaml:"uncompressed,omitempty"`
 
 	// Body of response
 	Body string `yaml:"body"`
@@ -482,7 +482,7 @@ func (c *Cassette) Save() error {
 	// Create directory for cassette if missing
 	cassetteDir := filepath.Dir(c.File)
 	if _, err := os.Stat(cassetteDir); os.IsNotExist(err) {
-		if err = os.MkdirAll(cassetteDir, 0755); err != nil {
+		if err = os.MkdirAll(cassetteDir, 0o755); err != nil {
 			return err
 		}
 	}
