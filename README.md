@@ -107,11 +107,10 @@ func customMatcher(r *http.Request, i cassette.Request) bool {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("testdata/matchers"),
 	recorder.WithMatcher(customMatcher),
 }
 
-rec, err := recorder.New(opts...)
+rec, err := recorder.New("testdata/matchers", opts...)
 if err != nil {
         log.Fatal(err)
 }
@@ -157,12 +156,11 @@ hook := func(i *cassette.Interaction) error {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("testdata/filters"),
 	recorder.WithHook(hook, recorder.AfterCaptureHook),
 	recorder.WithMatcher(cassette.NewDefaultMatcher(cassette.WithIgnoreAuthorization())),
 }
 
-r, err := recorder.New(opts...)
+r, err := recorder.New("testdata/filters", opts...)
 if err != nil {
 	log.Fatal(err)
 }
@@ -198,11 +196,10 @@ hook := func(i *cassette.Interaction) error {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("testdata/filters"),
 	recorder.WithHook(hook, recorder.BeforeSaveHook),
 }
 
-r, err := recorder.New(opts...)
+r, err := recorder.New("testdata/filters", opts...)
 if err != nil {
 	log.Fatal(err)
 }
@@ -229,11 +226,10 @@ passthrough := func(req *http.Request) bool {
 
 // Recorder options
 opts := []recorder.Option{
-	recorder.WithCassette("testdata/filters"),
 	recorder.WithPassthrough(passthrough),
 }
 
-r, err := recorder.New(opts...)
+r, err := recorder.New("testdata/filters", opts...)
 if err != nil {
 	log.Fatal(err)
 }
