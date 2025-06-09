@@ -214,7 +214,6 @@ func TestRecordOnceMode(t *testing.T) {
 		recordedStatus := c.Interactions[i].Response.Code
 		if test.wantStatus != recordedStatus {
 			t.Fatalf("got recorded status: %q, want recorded status: %q", test.wantStatus, recordedStatus)
-
 		}
 	}
 
@@ -420,7 +419,7 @@ func TestRecordOnceWithMissingEpisodes(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected err but was %T %s", err, err)
 		}
-		if urlErr.Err != cassette.ErrInteractionNotFound {
+		if !errors.Is(urlErr.Err, cassette.ErrInteractionNotFound) {
 			t.Fatalf("expected cassette.ErrInteractionNotFound but was %T %s", err, err)
 		}
 	}

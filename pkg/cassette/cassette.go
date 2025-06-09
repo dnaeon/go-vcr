@@ -51,12 +51,12 @@ var (
 	// found in the cassette file.
 	ErrInteractionNotFound = errors.New("requested interaction not found")
 
-	// ErrCassetteNotFound indicates that a requested casette doesn't exist.
+	// ErrCassetteNotFound indicates that a requested cassette doesn't exist.
 	ErrCassetteNotFound = errors.New("requested cassette not found")
 
 	// ErrUnsupportedCassetteFormat is returned when attempting to use an
 	// older and potentially unsupported format of a cassette.
-	ErrUnsupportedCassetteFormat = fmt.Errorf("unsupported cassette version format")
+	ErrUnsupportedCassetteFormat = errors.New("unsupported cassette version format")
 )
 
 // Request represents a client request as recorded in the cassette file.
@@ -464,14 +464,17 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		// r.ParseForm returns missing form body error
 		r.Body = http.NoBody
 	}
+	replayed := 0
 	for _, i := range c.Interactions {
+		if i.replayed {
+			replayed++
+		}
 		if (c.ReplayableInteractions || !i.replayed) && c.Matcher(r, i.Request) {
 			i.replayed = true
 			return i, nil
 		}
 	}
-
-	return nil, ErrInteractionNotFound
+	return nil, fmt.Errorf("%w for after %d playbacks", ErrInteractionNotFound, replayed)
 }
 
 // Save writes the cassette data on disk for future re-use
