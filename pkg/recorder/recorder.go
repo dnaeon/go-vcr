@@ -483,7 +483,7 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 			RemoteAddr:       r.RemoteAddr,
 			RequestURI:       r.RequestURI,
 			Body:             reqBody.String(),
-			Form:             copiedReq.PostForm,
+			Form:             copiedReq.Form,
 			Headers:          r.Header,
 			URL:              r.URL.String(),
 			Method:           r.Method,
