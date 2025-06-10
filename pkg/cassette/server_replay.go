@@ -2,12 +2,10 @@ package cassette
 
 import (
 	"fmt"
-	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -45,9 +43,11 @@ func TestServerReplay(t *testing.T, cassetteName string, handler http.Handler) {
 	}
 
 	for _, interaction := range c.Interactions {
-		t.Run(fmt.Sprintf("Interaction_%d", interaction.ID), func(t *testing.T) {
-			TestInteractionReplay(t, handler, interaction)
-		})
+		t.Run(
+			fmt.Sprintf("Interaction_%d", interaction.ID), func(t *testing.T) {
+				TestInteractionReplay(t, handler, interaction)
+			},
+		)
 	}
 }
 
@@ -58,10 +58,6 @@ func TestInteractionReplay(t *testing.T, handler http.Handler, interaction *Inte
 	req, err := interaction.GetHTTPRequest()
 	if err != nil {
 		t.Errorf("unexpected error getting interaction request: %v", err)
-	}
-
-	if len(req.Form) > 0 {
-		req.Body = io.NopCloser(strings.NewReader(req.Form.Encode()))
 	}
 
 	w := httptest.NewRecorder()
