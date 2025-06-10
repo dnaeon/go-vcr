@@ -38,6 +38,9 @@ interactions:
         content_length: 0
         host: ""
         request_uri: /request2?query=example
+        form:
+            query:
+                - example
         headers:
             Accept-Encoding:
                 - gzip
