@@ -342,13 +342,10 @@ func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
 		return false
 	}
 
-	// Only ParseForm for non-GET requests since that would use query params
-	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
-		err := r.ParseForm()
-		if err != nil {
-			return false
-		}
+	if err := r.ParseForm(); err != nil {
+		return false
 	}
+
 	if !m.deepEqualContents(r.Form, i.Form) {
 		return false
 	}
@@ -474,7 +471,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 			return i, nil
 		}
 	}
-	return nil, fmt.Errorf("%w for after %d playbacks", ErrInteractionNotFound, replayed)
+	return nil, ErrInteractionNotFound
 }
 
 // Save writes the cassette data on disk for future re-use
