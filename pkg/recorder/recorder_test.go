@@ -148,6 +148,14 @@ func TestRecordOnceMode(t *testing.T) {
 			wantContentLength: 15,
 			path:              "/api/v1/qux",
 		},
+		{
+			method:            http.MethodPut,
+			body:              "foobar",
+			wantBody:          "PUT go-vcr\nfoobar",
+			wantStatus:        http.StatusOK,
+			wantContentLength: 17,
+			path:              "/api/v1/foobar?foo=bar&baz=qux",
+		},
 	}
 
 	server := newEchoHttpServer()
