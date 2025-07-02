@@ -1259,7 +1259,8 @@ func TestRecordAndPlaybackWithQueryParams(t *testing.T) {
 		}
 	}
 
-	{
+	// Phase 1: create the recording
+	func() {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			queryParams := r.URL.Query()
 			foo := queryParams.Get("foo")
@@ -1330,13 +1331,10 @@ func TestRecordAndPlaybackWithQueryParams(t *testing.T) {
 		if form.Get("baz") != "true" {
 			t.Fatalf("Expected query param baz=true, got %s", form.Get("baz"))
 		}
+	}()
 
-		// Phase 2: Test playback without the server running
-		// Stop the test server to ensure we're replaying from cassette
-		server.Close()
-	}
-
-	{
+	// Phase 2: playback
+	func() {
 		// Create a new recorder in replay mode
 		rec2, err := recorder.New(cassPath, recorder.WithMode(recorder.ModeReplayOnly))
 		if err != nil {
@@ -1358,5 +1356,5 @@ func TestRecordAndPlaybackWithQueryParams(t *testing.T) {
 		if len(c2.Interactions) != 1 {
 			t.Fatalf("Expected still 1 interaction after playback, got %d", len(c2.Interactions))
 		}
-	}
+	}()
 }
