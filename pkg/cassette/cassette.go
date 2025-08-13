@@ -31,8 +31,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -418,8 +416,13 @@ func New(name string) *Cassette {
 
 // Load reads a cassette file from disk
 func Load(name string) (*Cassette, error) {
+	return LoadWithFS(name, NewDiskFS())
+}
+
+// Load reads a cassette file from disk
+func LoadWithFS(name string, fs FS) (*Cassette, error) {
 	c := New(name)
-	data, err := os.ReadFile(c.File)
+	data, err := fs.ReadFile(c.File)
 	if err != nil {
 		return nil, err
 	}
@@ -476,16 +479,13 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 
 // Save writes the cassette data on disk for future re-use
 func (c *Cassette) Save() error {
+	return c.SaveWithFS(NewDiskFS())
+}
+
+// SaveWithFS writes the cassette data on abstract filesystem for future re-use
+func (c *Cassette) SaveWithFS(fs FS) error {
 	c.Lock()
 	defer c.Unlock()
-
-	// Create directory for cassette if missing
-	cassetteDir := filepath.Dir(c.File)
-	if _, err := os.Stat(cassetteDir); os.IsNotExist(err) {
-		if err = os.MkdirAll(cassetteDir, 0o755); err != nil {
-			return err
-		}
-	}
 
 	// Filter out interactions which should be discarded. While discarding
 	// interactions we should also fix the interaction IDs, so that we don't
@@ -507,24 +507,7 @@ func (c *Cassette) Save() error {
 		return err
 	}
 
-	f, err := os.Create(c.File)
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-
 	// Honor the YAML structure specification
 	// http://www.yaml.org/spec/1.2/spec.html#id2760395
-	_, err = f.Write([]byte("---\n"))
-	if err != nil {
-		return err
-	}
-
-	_, err = f.Write(data)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return fs.WriteFile(c.File, append([]byte("---\n"), data...))
 }

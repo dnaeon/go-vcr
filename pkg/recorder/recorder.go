@@ -33,7 +33,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httputil"
-	"os"
 	"time"
 
 	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
@@ -207,6 +206,9 @@ type Recorder struct {
 	// replayableInteractions specifies whether to allow interactions to be
 	// replayed multiple times.
 	replayableInteractions bool
+
+	// fs specifies custom filesystem ([cassette.FS]) implementation.
+	fs cassette.FS
 }
 
 // Option is a function which configures the [Recorder].
@@ -300,6 +302,17 @@ func WithReplayableInteractions(val bool) Option {
 	return opt
 }
 
+// WithFS is an [Option], which configures the [Recorder] to use
+// custom filesystem ([cassette.FS]) implementation. This allows the [Recorder] to use any
+// FS-compatible backend (e.g., local disk, in-memory, or mock) for reading and writing files.
+func WithFS(fs cassette.FS) Option {
+	opt := func(r *Recorder) {
+		r.fs = fs
+	}
+
+	return opt
+}
+
 // New creates a new [Recorder] and configures it using the provided options.
 func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	r := &Recorder{
@@ -312,6 +325,7 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 		skipRequestLatency:     false,
 		matcher:                cassette.DefaultMatcher,
 		replayableInteractions: false,
+		fs:                     cassette.NewDiskFS(),
 	}
 
 	for _, opt := range opts {
@@ -339,8 +353,7 @@ func (rec *Recorder) getCassette() (*cassette.Cassette, error) {
 
 	// Create or the cassette depending on the mode we are operating in.
 	cassetteFile := cassette.New(rec.cassetteName).File
-	_, err := os.Stat(cassetteFile)
-	cassetteExists := !os.IsNotExist(err)
+	cassetteExists := rec.fs.IsFileExists(cassetteFile)
 
 	switch {
 	case rec.mode == ModeRecordOnly:
@@ -348,15 +361,15 @@ func (rec *Recorder) getCassette() (*cassette.Cassette, error) {
 	case rec.mode == ModeReplayOnly && !cassetteExists:
 		return nil, fmt.Errorf("%w: %s", cassette.ErrCassetteNotFound, cassetteFile)
 	case rec.mode == ModeReplayOnly && cassetteExists:
-		return cassette.Load(rec.cassetteName)
+		return cassette.LoadWithFS(rec.cassetteName, rec.fs)
 	case rec.mode == ModeReplayWithNewEpisodes && !cassetteExists:
 		return cassette.New(rec.cassetteName), nil
 	case rec.mode == ModeReplayWithNewEpisodes && cassetteExists:
-		return cassette.Load(rec.cassetteName)
+		return cassette.LoadWithFS(rec.cassetteName, rec.fs)
 	case rec.mode == ModeRecordOnce && !cassetteExists:
 		return cassette.New(rec.cassetteName), nil
 	case rec.mode == ModeRecordOnce && cassetteExists:
-		return cassette.Load(rec.cassetteName)
+		return cassette.LoadWithFS(rec.cassetteName, rec.fs)
 	case rec.mode == ModePassthrough:
 		return cassette.New(rec.cassetteName), nil
 	default:
@@ -520,8 +533,7 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 // running in ModePassthrough no cassette will be saved on disk.
 func (rec *Recorder) Stop() error {
 	cassetteFile := rec.cassette.File
-	_, err := os.Stat(cassetteFile)
-	cassetteExists := !os.IsNotExist(err)
+	cassetteExists := rec.fs.IsFileExists(cassetteFile)
 
 	// Nothing to do for ModeReplayOnly and ModePassthrough here
 	switch {
@@ -555,7 +567,7 @@ func (rec *Recorder) persistCassette() error {
 		}
 	}
 
-	return rec.cassette.Save()
+	return rec.cassette.SaveWithFS(rec.fs)
 }
 
 // applyHooks applies the registered hooks of the given kind with the

@@ -32,8 +32,15 @@ var DefaultReplayAssertFunc ReplayAssertFunc = func(t *testing.T, expected *Inte
 // TestServerReplay loads a Cassette and replays each Interaction with the provided Handler, then compares the response
 func TestServerReplay(t *testing.T, cassetteName string, handler http.Handler) {
 	t.Helper()
+	TestServerReplayWithFS(t, cassetteName, NewDiskFS(), handler)
+}
 
-	c, err := Load(cassetteName)
+// TestServerReplayWithFS loads a Cassette and replays each Interaction with the provided Handler, then compares the response.
+// Function reads replay from abstract file system.
+func TestServerReplayWithFS(t *testing.T, cassetteName string, fs FS, handler http.Handler) {
+	t.Helper()
+
+	c, err := LoadWithFS(cassetteName, fs)
 	if err != nil {
 		t.Errorf("unexpected error loading Cassette: %v", err)
 	}
