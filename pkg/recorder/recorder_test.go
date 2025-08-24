@@ -875,7 +875,7 @@ func TestBeforeResponseReplayHook(t *testing.T) {
 	server.Close()
 	rec.Stop()
 
-	// Re-run the tests with the hook installed.  Add a hook which replaces
+	// Re-run the tests with the hook installed. Add a hook which replaces
 	// each request body of a previously recorded interaction.
 	dummyBody := "MODIFIED BODY"
 	hook := func(i *cassette.Interaction) error {
