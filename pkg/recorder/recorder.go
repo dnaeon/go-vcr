@@ -65,7 +65,7 @@ const (
 	// ones will be recorded and added to the cassette. This mode is useful
 	// in cases where you need to update an existing cassette with new
 	// interactions, but don't want to wipe out previously recorded
-	// interactions.  If the cassette file is missing it will create a new
+	// interactions. If the cassette file is missing it will create a new
 	// one.
 	ModeReplayWithNewEpisodes
 
@@ -79,7 +79,7 @@ const (
 
 	// ModePassthrough specifies that VCR will not record any interactions
 	// at all. In this mode all HTTP requests will be forwarded to the
-	// endpoints using the real HTTP transport.  In this mode no cassette
+	// endpoints using the real HTTP transport. In this mode no cassette
 	// will be created.
 	ModePassthrough
 )
@@ -92,7 +92,7 @@ var ErrInvalidMode = errors.New("invalid recorder mode")
 // the playback. The hook functions allow for plugging in to the playback and
 // transform an interaction, if needed. For example a hook function might redact
 // or remove sensitive data from a request/response before it is added to the
-// in-memory cassette, or before it is saved on disk.  Another use case would be
+// in-memory cassette, or before it is saved on disk. Another use case would be
 // to transform the HTTP response before it is returned to the client during
 // replay mode.
 type HookFunc func(i *cassette.Interaction) error
@@ -246,7 +246,7 @@ func WithBlockUnsafeMethods(val bool) Option {
 }
 
 // WithSkipRequestLatency is an [Option], which configures the [Recorder] whether
-// to simulate the latency of the recorded interaction.  When set to false it
+// to simulate the latency of the recorded interaction. When set to false it
 // will block for the period of time taken by the original request to simulate
 // the latency between the recorder and the remote endpoints.
 func WithSkipRequestLatency(val bool) Option {
