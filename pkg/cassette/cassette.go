@@ -396,6 +396,9 @@ type Cassette struct {
 	IsNew bool `yaml:"-"`
 
 	nextInteractionId int `yaml:"-"`
+
+	// EncodeOptions is an optional list of YAML encoder options.
+	EncodeOptions []yaml.EncodeOption `yaml:"-"`
 }
 
 // New creates a new empty cassette
@@ -502,10 +505,12 @@ func (c *Cassette) SaveWithFS(fs FS) error {
 	c.Interactions = interactions
 
 	// Marshal to YAML and save interactions
-	data, err := yaml.Marshal(c)
-	if err != nil {
+	var buff bytes.Buffer
+	enc := yaml.NewEncoder(&buff, c.EncodeOptions...)
+	if err := enc.Encode(c); err != nil {
 		return err
 	}
+	data := buff.Bytes()
 
 	// Honor the YAML structure specification
 	// http://www.yaml.org/spec/1.2/spec.html#id2760395
