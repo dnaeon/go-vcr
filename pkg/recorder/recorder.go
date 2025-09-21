@@ -35,7 +35,7 @@ import (
 	"net/http/httputil"
 	"time"
 
-	"github.com/goccy/go-yaml"
+	"go.yaml.in/yaml/v4"
 	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
 )
 
@@ -211,7 +211,7 @@ type Recorder struct {
 	// fs specifies custom filesystem ([cassette.FS]) implementation.
 	fs cassette.FS
 
-	encodeOptions []yaml.EncodeOption
+	marshalFunc cassette.MarshalFunc
 }
 
 // Option is a function which configures the [Recorder].
@@ -316,12 +316,12 @@ func WithFS(fs cassette.FS) Option {
 	return opt
 }
 
-// WithEncodeOptions is an [Option], which configures the [Recorder] to use
-// custom YAML encoder options. This allows customization of the YAML encoding
+// WithMarshalFunc is an [Option], which configures the [Recorder] to use
+// custom YAML marshal func. This allows customization of the YAML encoding
 // process, such as setting string literal style, etc.
-func WithEncodeOptions(encodeOptions ...yaml.EncodeOption) Option {
+func WithMarshalFunc(marshalFunc cassette.MarshalFunc) Option {
 	return func(r *Recorder) {
-		r.encodeOptions = encodeOptions
+		r.marshalFunc = marshalFunc
 	}
 }
 
@@ -338,6 +338,7 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 		matcher:                cassette.DefaultMatcher,
 		replayableInteractions: false,
 		fs:                     cassette.NewDiskFS(),
+		marshalFunc:            yaml.Marshal,
 	}
 
 	for _, opt := range opts {
@@ -352,7 +353,7 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	r.cassette = c
 	r.cassette.Matcher = r.matcher
 	r.cassette.ReplayableInteractions = r.replayableInteractions
-	r.cassette.EncodeOptions = r.encodeOptions
+	r.cassette.MarshalFunc = r.marshalFunc
 
 	return r, nil
 }

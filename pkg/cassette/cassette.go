@@ -36,7 +36,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goccy/go-yaml"
+	"go.yaml.in/yaml/v4"
 )
 
 const (
@@ -196,6 +196,9 @@ func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
 // MatcherFunc is a predicate, which returns true when the actual request
 // matches an interaction from the cassette.
 type MatcherFunc func(*http.Request, Request) bool
+
+// MarshalFunc is a function which marshals an object to a byte slice.
+type MarshalFunc func(any) ([]byte, error)
 
 // defaultMatcher is the default matcher used to match HTTP requests with
 // recorded interactions.
@@ -397,8 +400,8 @@ type Cassette struct {
 
 	nextInteractionId int `yaml:"-"`
 
-	// EncodeOptions is an optional list of YAML encoder options.
-	EncodeOptions []yaml.EncodeOption `yaml:"-"`
+	// MarshalFunc is a custom marshal func.
+	MarshalFunc MarshalFunc `yaml:"-"`
 }
 
 // New creates a new empty cassette
@@ -505,12 +508,10 @@ func (c *Cassette) SaveWithFS(fs FS) error {
 	c.Interactions = interactions
 
 	// Marshal to YAML and save interactions
-	var buff bytes.Buffer
-	enc := yaml.NewEncoder(&buff, c.EncodeOptions...)
-	if err := enc.Encode(c); err != nil {
+	data, err := c.MarshalFunc(c)
+	if err != nil {
 		return err
 	}
-	data := buff.Bytes()
 
 	// Honor the YAML structure specification
 	// http://www.yaml.org/spec/1.2/spec.html#id2760395
