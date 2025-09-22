@@ -76,6 +76,31 @@ complete and ready to run examples.
 You can also refer to the [test cases](./pkg/recorder/recorder_test.go) for
 additional examples.
 
+## Custom YAML Marshaling Function
+
+If you need control how YAML is encoded, set `WithMarshalFunc` with a custom
+func. This default to `yaml.Marshal`.
+
+```go
+marshalFunc := func(in any) (out []byte, err error) {
+	var buff bytes.Buffer
+	enc := yaml.NewEncoder(&buff)
+
+	// Example of custom options from
+	// https://pkg.go.dev/go.yaml.in/yaml/v4
+	enc.CompactSeqIndent()
+	enc.SetIndent(4)
+
+	if err := enc.Encode(in); err != nil {
+		return nil, err
+	}
+	return buff.Bytes(), nil
+}
+
+rec, err := recorder.New("cassette_name", recorder.WithMarshalFunc(marshalFunc))
+// ...
+```
+
 ## Custom Request Matching
 
 During replay mode, you can customize the way incoming requests are matched
