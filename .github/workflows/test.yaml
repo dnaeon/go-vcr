@@ -12,7 +12,7 @@ jobs:
     - uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go-version }}
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: make test_cover
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
