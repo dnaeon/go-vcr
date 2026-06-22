@@ -1358,3 +1358,164 @@ func TestRecordAndPlaybackWithQueryParams(t *testing.T) {
 		}
 	}()
 }
+
+func TestDebugWriterCapturesEvents(t *testing.T) {
+	t.Parallel()
+
+	server := newEchoHttpServer()
+	defer server.Close()
+
+	cassPath := t.TempDir()
+	var buf bytes.Buffer
+
+	rec, err := recorder.New(cassPath, recorder.WithDebugWriter(&buf))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Drive a request through so the per-request and match events fire.
+	client := rec.GetDefaultClient()
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/foo", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if err := rec.Stop(); err != nil {
+		t.Fatal(err)
+	}
+
+	out := buf.String()
+	for _, want := range []string{
+		"recorder initialized",
+		"request received",
+		"forwarding to real transport",
+		"interaction added",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("debug output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+}
+
+func TestDebugWriterDefaultIsDiscard(t *testing.T) {
+	// Cannot t.Parallel() because we set VCR_DEBUG via t.Setenv.
+
+	// Make sure VCR_DEBUG does not leak in from the surrounding environment.
+	t.Setenv("VCR_DEBUG", "")
+
+	server := newEchoHttpServer()
+	defer server.Close()
+
+	cassPath := t.TempDir()
+
+	rec, err := recorder.New(cassPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := rec.GetDefaultClient()
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/foo", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if err := rec.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing observable to assert here other than the recorder didn't
+	// crash with the default io.Discard writer. The absence of stderr
+	// output is the contract; we cannot directly capture os.Stderr from
+	// here without process-wide redirection.
+}
+
+func TestVCRDebugEnvEnablesStderr(t *testing.T) {
+	// Cannot t.Parallel() because t.Setenv and os.Stderr redirection are
+	// process-wide.
+	t.Setenv("VCR_DEBUG", "true")
+
+	// Redirect os.Stderr so we can observe the trace.
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	server := newEchoHttpServer()
+	defer server.Close()
+
+	rec, err := recorder.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := rec.GetDefaultClient()
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/foo", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if err := rec.Stop(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Close the writer so the reader sees EOF.
+	w.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(string(out), "recorder initialized") {
+		t.Fatalf("expected VCR_DEBUG=true to enable stderr debug trace, got:\n%s", string(out))
+	}
+}
+
+func TestVCRDebugEnvOverriddenByWithDebugWriter(t *testing.T) {
+	// Cannot t.Parallel() because we set VCR_DEBUG via t.Setenv.
+	t.Setenv("VCR_DEBUG", "true")
+
+	var buf bytes.Buffer
+	server := newEchoHttpServer()
+	defer server.Close()
+
+	rec, err := recorder.New(t.TempDir(), recorder.WithDebugWriter(&buf))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := rec.GetDefaultClient()
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/foo", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if err := rec.Stop(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The explicit WithDebugWriter must win over VCR_DEBUG, so the trace
+	// is in the buffer.
+	if !strings.Contains(buf.String(), "recorder initialized") {
+		t.Fatalf("WithDebugWriter should have received the trace, got buf:\n%s", buf.String())
+	}
+}
