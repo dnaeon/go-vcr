@@ -86,6 +86,24 @@ const (
 	ModePassthrough
 )
 
+// String implements the [fmt.Stringer] interface for [Mode].
+func (m Mode) String() string {
+	switch m {
+	case ModeRecordOnly:
+		return "RecordOnly"
+	case ModeReplayOnly:
+		return "ReplayOnly"
+	case ModeReplayWithNewEpisodes:
+		return "ReplayWithNewEpisodes"
+	case ModeRecordOnce:
+		return "RecordOnce"
+	case ModePassthrough:
+		return "Passthrough"
+	default:
+		return fmt.Sprintf("Mode(%d)", m)
+	}
+}
+
 // ErrInvalidMode is returned when attempting to start the recorder with invalid
 // mode
 var ErrInvalidMode = errors.New("invalid recorder mode")
@@ -383,7 +401,10 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 			Level:     slog.LevelDebug,
 		},
 	)
-	r.debugLogger = slog.New(logHandler).With("component", "recorder")
+	r.debugLogger = slog.New(logHandler).With(
+		"component", "recorder",
+		"mode", r.Mode().String(),
+	)
 	r.cassette.DebugLogger = slog.New(logHandler).With(
 		"component", "cassette",
 		"name", r.cassette.Name,
