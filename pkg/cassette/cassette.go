@@ -419,6 +419,7 @@ func New(name string) *Cassette {
 		ReplayableInteractions: false,
 		IsNew:                  true,
 		nextInteractionId:      0,
+		DebugLogger:            slog.New(slog.DiscardHandler),
 	}
 
 	return c
@@ -462,6 +463,11 @@ func (c *Cassette) AddInteraction(i *Interaction) {
 // GetInteraction retrieves a recorded request/response interaction
 func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 	return c.getInteraction(r)
+}
+
+// debug emits a debug event
+func (c *Cassette) debug(msg string, args ...any) {
+	c.DebugLogger.Debug(msg, args...)
 }
 
 // getInteraction searches for the interaction corresponding to the given HTTP
