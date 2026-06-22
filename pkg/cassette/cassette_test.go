@@ -293,3 +293,206 @@ func TestMatcher(t *testing.T) {
 		})
 	})
 }
+
+func TestIsPrintable(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		if !isPrintable(nil) {
+			t.Fatalf("nil should be printable")
+		}
+		if !isPrintable([]byte{}) {
+			t.Fatalf("empty slice should be printable")
+		}
+	})
+
+	t.Run("plain ASCII", func(t *testing.T) {
+		if !isPrintable([]byte("hello world")) {
+			t.Fatalf("plain ASCII should be printable")
+		}
+	})
+
+	t.Run("HTTP whitespace runes are allowed", func(t *testing.T) {
+		if !isPrintable([]byte("a\tb\nc\rd")) {
+			t.Fatalf("tab, LF and CR should be allowed")
+		}
+	})
+
+	t.Run("NUL is not printable", func(t *testing.T) {
+		if isPrintable([]byte{'a', 0x00, 'b'}) {
+			t.Fatalf("NUL byte should not be printable")
+		}
+	})
+
+	t.Run("other control chars are not printable", func(t *testing.T) {
+		if isPrintable([]byte{'a', 0x01, 'b'}) {
+			t.Fatalf("0x01 should not be printable")
+		}
+		if isPrintable([]byte{'a', 0x1F, 'b'}) {
+			t.Fatalf("0x1F should not be printable")
+		}
+	})
+
+	t.Run("invalid UTF-8 is not printable", func(t *testing.T) {
+		if isPrintable([]byte{0xFF, 0xFE, 0xFD}) {
+			t.Fatalf("invalid UTF-8 should not be printable")
+		}
+	})
+
+	t.Run("valid multi-byte UTF-8 is printable", func(t *testing.T) {
+		if !isPrintable([]byte("héllo wörld")) {
+			t.Fatalf("valid multi-byte UTF-8 should be printable")
+		}
+	})
+}
+
+func TestFormatBody(t *testing.T) {
+	t.Run("empty body renders as empty string", func(t *testing.T) {
+		if got := formatBody(nil); got != "" {
+			t.Fatalf("got %q, want empty string", got)
+		}
+		if got := formatBody([]byte{}); got != "" {
+			t.Fatalf("got %q, want empty string", got)
+		}
+	})
+
+	t.Run("plain text is rendered verbatim", func(t *testing.T) {
+		in := []byte("hello world")
+		if got := formatBody(in); got != "hello world" {
+			t.Fatalf("got %q, want %q", got, "hello world")
+		}
+	})
+
+	t.Run("binary body renders as placeholder", func(t *testing.T) {
+		in := []byte{0x00, 0x01, 0x02, 0x03}
+		want := fmt.Sprintf("<binary, %d bytes>", len(in))
+		if got := formatBody(in); got != want {
+			t.Fatalf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("body larger than debugBodyLimit is truncated", func(t *testing.T) {
+		in := make([]byte, debugBodyLimit+128)
+		for i := range in {
+			in[i] = 'a'
+		}
+		got := formatBody(in)
+		if !strings.HasPrefix(got, strings.Repeat("a", debugBodyLimit)) {
+			t.Fatalf("truncated body does not start with the first debugBodyLimit bytes")
+		}
+		wantSuffix := fmt.Sprintf("(truncated, %d bytes total)", len(in))
+		if !strings.HasSuffix(got, wantSuffix) {
+			t.Fatalf("got %q, want suffix %q", got, wantSuffix)
+		}
+	})
+}
+
+func TestSummarizeBody(t *testing.T) {
+	t.Run("empty body", func(t *testing.T) {
+		if got := summarizeBody(""); got != "" {
+			t.Fatalf("got %q, want empty string", got)
+		}
+	})
+
+	t.Run("plain body is returned unchanged", func(t *testing.T) {
+		if got := summarizeBody("hello"); got != "hello" {
+			t.Fatalf("got %q, want %q", got, "hello")
+		}
+	})
+
+	t.Run("newlines are escaped", func(t *testing.T) {
+		got := summarizeBody("foo\nbar\rbaz")
+		want := `foo\nbar\rbaz`
+		if got != want {
+			t.Fatalf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("oversized body is truncated", func(t *testing.T) {
+		in := strings.Repeat("a", debugSummaryBodyLimit+10)
+		got := summarizeBody(in)
+		want := strings.Repeat("a", debugSummaryBodyLimit) + "..."
+		if got != want {
+			t.Fatalf("got %q, want %q", got, want)
+		}
+	})
+}
+
+func TestSummarizeCassetteRequest(t *testing.T) {
+	req := Request{
+		Method: "GET",
+		URL:    "https://example.com/foo",
+		Body:   "",
+	}
+	want := `GET https://example.com/foo body=""`
+	if got := summarizeCassetteRequest(req); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeCassetteResponse(t *testing.T) {
+	resp := Response{
+		Code: 200,
+		Body: "ok",
+	}
+	want := `200 body="ok"`
+	if got := summarizeCassetteResponse(resp); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestDumpHTTPRequestRestoresBody(t *testing.T) {
+	t.Run("nil body", func(t *testing.T) {
+		r, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := dumpHTTPRequest(r)
+		if !strings.Contains(got, "GET / HTTP/1.1") {
+			t.Fatalf("dump missing request line: %q", got)
+		}
+	})
+
+	t.Run("body is restored and dump contains it", func(t *testing.T) {
+		body := "hello world"
+		r, err := http.NewRequest(http.MethodPost, "http://example.com/", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := dumpHTTPRequest(r)
+		if !strings.Contains(got, body) {
+			t.Fatalf("dump %q does not contain body %q", got, body)
+		}
+		// The body must still be readable by subsequent code (the matcher,
+		// the round-tripper, etc.).
+		read, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("body unreadable after dump: %v", err)
+		}
+		if string(read) != body {
+			t.Fatalf("got body %q after dump, want %q", string(read), body)
+		}
+	})
+}
+
+func TestDumpCassetteRequest(t *testing.T) {
+	req := Request{
+		Method:  "POST",
+		URL:     "https://example.com/v1",
+		Proto:   "HTTP/1.1",
+		Host:    "example.com",
+		Headers: http.Header{"Content-Type": {"application/json"}},
+		Body:    `{"x":1}`,
+	}
+	got := dumpCassetteRequest(req)
+	if !strings.Contains(got, "POST https://example.com/v1 HTTP/1.1") {
+		t.Fatalf("dump missing request line: %q", got)
+	}
+	if !strings.Contains(got, "Host: example.com") {
+		t.Fatalf("dump missing Host header: %q", got)
+	}
+	if !strings.Contains(got, "Content-Type: application/json") {
+		t.Fatalf("dump missing Content-Type header: %q", got)
+	}
+	if !strings.Contains(got, `{"x":1}`) {
+		t.Fatalf("dump missing body: %q", got)
+	}
+}
