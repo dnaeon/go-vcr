@@ -31,6 +31,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"time"
@@ -211,7 +212,13 @@ type Recorder struct {
 	// fs specifies custom filesystem ([cassette.FS]) implementation.
 	fs cassette.FS
 
+	// marshalFunc is the [cassette.MarshalFunc] which is called for
+	// encoding the cassette.
 	marshalFunc cassette.MarshalFunc
+
+	// debugLogger is an [io.Writer], which is used for emitting debug
+	// events related to the recorder.
+	debugLogger *slog.Logger
 }
 
 // Option is a function which configures the [Recorder].
@@ -305,9 +312,10 @@ func WithReplayableInteractions(val bool) Option {
 	return opt
 }
 
-// WithFS is an [Option], which configures the [Recorder] to use
-// custom filesystem ([cassette.FS]) implementation. This allows the [Recorder] to use any
-// FS-compatible backend (e.g., local disk, in-memory, or mock) for reading and writing files.
+// WithFS is an [Option], which configures the [Recorder] to use custom
+// filesystem ([cassette.FS]) implementation. This allows the [Recorder] to use
+// any FS-compatible backend (e.g., local disk, in-memory, or mock) for reading
+// and writing files.
 func WithFS(fs cassette.FS) Option {
 	opt := func(r *Recorder) {
 		r.fs = fs
@@ -316,13 +324,24 @@ func WithFS(fs cassette.FS) Option {
 	return opt
 }
 
-// WithMarshalFunc is an [Option], which configures the [Recorder] to use
-// custom YAML marshal func. This allows customization of the YAML encoding
-// process, such as setting string literal style, etc.
+// WithMarshalFunc is an [Option], which configures the [Recorder] to use custom
+// YAML marshal func. This allows customization of the YAML encoding process,
+// such as setting string literal style, etc.
 func WithMarshalFunc(marshalFunc cassette.MarshalFunc) Option {
 	return func(r *Recorder) {
 		r.marshalFunc = marshalFunc
 	}
+}
+
+// WithDebugLogger is an [Option], which configures the [Recorder] to use the
+// given [slog.Logger] for logging debug events. The provided [slog.Logger]
+// instance must be configured with [slog.LevelDebug].
+func WithDebugLogger(l *slog.Logger) Option {
+	opt := func(r *Recorder) {
+		r.debugLogger = l
+	}
+
+	return opt
 }
 
 // New creates a new [Recorder] and configures it using the provided options.
@@ -354,6 +373,7 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	r.cassette.Matcher = r.matcher
 	r.cassette.ReplayableInteractions = r.replayableInteractions
 	r.cassette.MarshalFunc = r.marshalFunc
+	r.cassette.DebugLogger = r.debugLogger
 
 	return r, nil
 }
