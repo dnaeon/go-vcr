@@ -394,16 +394,10 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	r.cassette.ReplayableInteractions = r.replayableInteractions
 	r.cassette.MarshalFunc = r.marshalFunc
 
-	logHandler := slog.NewTextHandler(
-		r.debugWriter,
-		&slog.HandlerOptions{
-			AddSource: true,
-			Level:     slog.LevelDebug,
-		},
-	)
+	logHandler := slog.NewTextHandler(r.debugWriter, &slog.HandlerOptions{Level: slog.LevelDebug})
 	r.debugLogger = slog.New(logHandler).With(
 		"component", "recorder",
-		"mode", r.Mode().String(),
+		"mode", r.mode,
 	)
 	r.cassette.DebugLogger = slog.New(logHandler).With(
 		"component", "cassette",
