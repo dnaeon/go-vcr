@@ -372,7 +372,7 @@ var DefaultMatcher = NewDefaultMatcher()
 
 // Cassette represents a cassette containing recorded interactions.
 type Cassette struct {
-	sync.Mutex `yaml:"-"`
+	mu sync.Mutex `yaml:"-"`
 
 	// Name of the cassette
 	Name string `yaml:"-"`
@@ -448,8 +448,8 @@ func LoadWithFS(name string, fs FS) (*Cassette, error) {
 
 // AddInteraction appends a new interaction to the cassette
 func (c *Cassette) AddInteraction(i *Interaction) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	i.ID = c.nextInteractionId
 	c.nextInteractionId += 1
 	c.Interactions = append(c.Interactions, i)
@@ -463,8 +463,8 @@ func (c *Cassette) GetInteraction(r *http.Request) (*Interaction, error) {
 // getInteraction searches for the interaction corresponding to the given HTTP
 // request, by using the configured [MatcherFunc].
 func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if r.Body == nil {
 		// causes an error in the matcher when we try to do r.ParseForm if r.Body is nil
 		// r.ParseForm returns missing form body error
@@ -490,8 +490,8 @@ func (c *Cassette) Save() error {
 
 // SaveWithFS writes the cassette data on abstract filesystem for future re-use
 func (c *Cassette) SaveWithFS(fs FS) error {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	// Filter out interactions which should be discarded. While discarding
 	// interactions we should also fix the interaction IDs, so that we don't
