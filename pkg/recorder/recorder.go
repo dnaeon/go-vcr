@@ -108,6 +108,23 @@ func (m Mode) String() string {
 // mode
 var ErrInvalidMode = errors.New("invalid recorder mode")
 
+// debugResponseBodyLimit is the maximum number of body bytes rendered in the
+// compact response summary emitted on "replaying response" debug events.
+const debugResponseBodyLimit = 80
+
+// summarizeResponse renders a recorded [cassette.Response] as a compact,
+// single-line summary suitable for debug log attrs.
+func summarizeResponse(resp cassette.Response) string {
+	body := resp.Body
+	body = strings.ReplaceAll(body, "\n", `\n`)
+	body = strings.ReplaceAll(body, "\r", `\r`)
+	if len(body) > debugResponseBodyLimit {
+		body = body[:debugResponseBodyLimit] + "..."
+	}
+
+	return fmt.Sprintf("%d body=%q", resp.Code, body)
+}
+
 // HookFunc represents a function, which will be invoked in different stages of
 // the playback. The hook functions allow for plugging in to the playback and
 // transform an interaction, if needed. For example a hook function might redact
@@ -401,8 +418,18 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	)
 	r.cassette.DebugLogger = slog.New(logHandler).With(
 		"component", "cassette",
-		"name", r.cassette.Name,
 		"file", r.cassette.File,
+	)
+	r.debug("recorder initialized",
+		"cassette_name", r.cassette.Name,
+		"cassette_file", r.cassette.File,
+		"is_new_cassette", r.cassette.IsNew,
+		"interaction_count", len(r.cassette.Interactions),
+		"replayable_interactions", r.replayableInteractions,
+		"block_unsafe_methods", r.blockUnsafeMethods,
+		"skip_request_latency", r.skipRequestLatency,
+		"passthroughs", len(r.passthroughs),
+		"hooks", len(r.hooks),
 	)
 
 	return r, nil
@@ -474,6 +501,7 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 			return interaction, nil
 		} else if errors.Is(err, cassette.ErrInteractionNotFound) {
 			// Interaction not found, we have a new episode
+			rec.debug("no match, will record new episode")
 			break
 		} else {
 			// Any other error is an error
@@ -481,6 +509,7 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 		}
 	case rec.mode == ModeRecordOnce && !rec.cassette.IsNew:
 		// We've got an existing cassette, return what we've got
+		rec.debug("replaying from existing cassette")
 		return rec.cassette.GetInteraction(r)
 	case rec.mode == ModePassthrough:
 		// Passthrough requests always hit the original endpoint
@@ -489,12 +518,14 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 		// When running with replayable interactions look for existing
 		// interaction first, so we avoid hitting multiple times the
 		// same endpoint.
+		rec.debug("checking cassette before recording (replayable interactions enabled)")
 		interaction, err := rec.cassette.GetInteraction(r)
 		if err == nil {
 			// Interaction found, return it
 			return interaction, nil
 		} else if errors.Is(err, cassette.ErrInteractionNotFound) {
 			// Interaction not found, we have to record it
+			rec.debug("no match, will record")
 			break
 		} else {
 			// Any other error is an error
@@ -539,12 +570,22 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 	start = time.Now()
 	resp := serverResponse
 	if resp == nil {
+		rec.debug("forwarding to real transport",
+			"method", r.Method,
+			"url", r.URL.String(),
+		)
 		resp, err = rec.getRoundTripper().RoundTrip(r)
 		if err != nil {
+			rec.debug("real transport error", "error", err)
 			return nil, err
 		}
 	}
 	requestDuration := time.Since(start)
+	rec.debug("real response received",
+		"status", resp.StatusCode,
+		"duration_ms", requestDuration.Milliseconds(),
+		"content_length", resp.ContentLength,
+	)
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -601,20 +642,25 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 // interactions if running in one of the recording modes. When
 // running in ModePassthrough no cassette will be saved on disk.
 func (r *Recorder) Stop() error {
+	r.debug("stopping recorder")
 	cassetteFile := r.cassette.File
 	cassetteExists := r.fs.IsFileExists(cassetteFile)
 
 	// Nothing to do for ModeReplayOnly and ModePassthrough here
 	switch {
 	case r.mode == ModeRecordOnly || r.mode == ModeReplayWithNewEpisodes:
+		r.debug("persisting cassette", "reason", "recording mode")
 		if err := r.persistCassette(); err != nil {
 			return err
 		}
 
 	case r.mode == ModeRecordOnce && !cassetteExists:
+		r.debug("persisting cassette", "reason", "record_once with new cassette")
 		if err := r.persistCassette(); err != nil {
 			return err
 		}
+	default:
+		r.debug("skipping persist", "reason", "replay or existing cassette")
 	}
 
 	// Apply on-recorder-stop hooks
@@ -655,6 +701,12 @@ func (r *Recorder) applyHooks(i *cassette.Interaction, kind HookKind) error {
 
 // RoundTrip implements the [http.RoundTripper] interface
 func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.debug("request received",
+		"method", req.Method,
+		"url", req.URL.String(),
+		"host", req.Host,
+	)
+
 	return r.executeAndRecord(req, nil)
 }
 
@@ -662,18 +714,21 @@ func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Response) (*http.Response, error) {
 	// Passthrough mode, use real transport
 	if r.mode == ModePassthrough {
+		r.debug("passthrough mode, bypassing cassette")
 		return r.getRoundTripper().RoundTrip(req)
 	}
 
 	// Apply passthrough handler functions
-	for _, passthroughFunc := range r.passthroughs {
+	for i, passthroughFunc := range r.passthroughs {
 		if passthroughFunc(req) {
+			r.debug("passthrough func matched", "index", i)
 			return r.getRoundTripper().RoundTrip(req)
 		}
 	}
 
 	interaction, err := r.requestHandler(req, serverResponse)
 	if err != nil {
+		r.debug("request handler error", "error", err)
 		return nil, err
 	}
 
@@ -688,8 +743,15 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 	default:
 		// Apply the duration defined in the interaction
 		if !r.skipRequestLatency {
+			r.debug("simulating latency", "duration_ms", interaction.Response.Duration.Milliseconds())
 			<-time.After(interaction.Response.Duration)
 		}
+
+		r.debug("replaying response",
+			"interaction_id", interaction.ID,
+			"status", interaction.Response.Code,
+			"response", summarizeResponse(interaction.Response),
+		)
 
 		return interaction.GetHTTPResponse()
 	}
