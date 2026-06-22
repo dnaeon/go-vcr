@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -402,6 +403,9 @@ type Cassette struct {
 
 	// MarshalFunc is a custom marshal func.
 	MarshalFunc MarshalFunc `yaml:"-"`
+
+	// DebugLogger is an [slog.Logger] which is used to emit debug events.
+	DebugLogger *slog.Logger `yaml:"-"`
 }
 
 // New creates a new empty cassette
