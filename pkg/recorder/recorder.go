@@ -216,8 +216,9 @@ type Recorder struct {
 	// encoding the cassette.
 	marshalFunc cassette.MarshalFunc
 
-	// debugLogger is an [io.Writer], which is used for emitting debug
-	// events related to the recorder.
+	// debugWriter and debugLogger are used for emitting debug events by the
+	// recorder.
+	debugWriter io.Writer
 	debugLogger *slog.Logger
 }
 
@@ -333,12 +334,11 @@ func WithMarshalFunc(marshalFunc cassette.MarshalFunc) Option {
 	}
 }
 
-// WithDebugLogger is an [Option], which configures the [Recorder] to use the
-// given [slog.Logger] for logging debug events. The provided [slog.Logger]
-// instance must be configured with [slog.LevelDebug].
-func WithDebugLogger(l *slog.Logger) Option {
+// WithDebugWriter is an [Option], which configures the [Recorder] to use the
+// given [io.Writer] for recording debug events.
+func WithDebugWriter(w io.Writer) Option {
 	opt := func(r *Recorder) {
-		r.debugLogger = l
+		r.debugWriter = w
 	}
 
 	return opt
@@ -358,6 +358,7 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 		replayableInteractions: false,
 		fs:                     cassette.NewDiskFS(),
 		marshalFunc:            yaml.Marshal,
+		debugWriter:            io.Discard,
 	}
 
 	for _, opt := range opts {
@@ -369,13 +370,32 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	r.cassette = c
 	r.cassette.Matcher = r.matcher
 	r.cassette.ReplayableInteractions = r.replayableInteractions
 	r.cassette.MarshalFunc = r.marshalFunc
-	r.cassette.DebugLogger = r.debugLogger
+
+	logHandler := slog.NewTextHandler(
+		r.debugWriter,
+		&slog.HandlerOptions{
+			AddSource: true,
+			Level:     slog.LevelDebug,
+		},
+	)
+	r.debugLogger = slog.New(logHandler).With("component", "recorder")
+	r.cassette.DebugLogger = slog.New(logHandler).With(
+		"component", "cassette",
+		"name", r.cassette.Name,
+		"file", r.cassette.File,
+	)
 
 	return r, nil
+}
+
+// debug emits a debug event
+func (r *Recorder) debug(msg string, args ...any) {
+	r.debugLogger.Debug(msg, args...)
 }
 
 // getCassette creates a new [*cassette.Cassette], or loads an already existing
