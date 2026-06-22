@@ -34,6 +34,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v4"
@@ -410,6 +413,15 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	r.cassette.Matcher = r.matcher
 	r.cassette.ReplayableInteractions = r.replayableInteractions
 	r.cassette.MarshalFunc = r.marshalFunc
+
+	// Configure debug logger to [os.Stderr] if `VCR_DEBUG' env var is set,
+	// and the current debug writer is [io.Discard]. That way tests which
+	// configure their own debug writers will not be affected, but tests
+	// that don't explicitly set it will get one for free.
+	ok, _ := strconv.ParseBool(os.Getenv("VCR_DEBUG"))
+	if ok && r.debugWriter == io.Discard {
+		r.debugWriter = os.Stderr
+	}
 
 	logHandler := slog.NewTextHandler(r.debugWriter, &slog.HandlerOptions{Level: slog.LevelDebug})
 	r.debugLogger = slog.New(logHandler).With(
