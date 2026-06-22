@@ -400,46 +400,46 @@ func (r *Recorder) debug(msg string, args ...any) {
 
 // getCassette creates a new [*cassette.Cassette], or loads an already existing
 // one depending on the mode of the recorder.
-func (rec *Recorder) getCassette() (*cassette.Cassette, error) {
-	if rec.cassetteName == "" {
+func (r *Recorder) getCassette() (*cassette.Cassette, error) {
+	if r.cassetteName == "" {
 		return nil, ErrNoCassetteName
 	}
 
 	// Create or the cassette depending on the mode we are operating in.
-	cassetteFile := cassette.New(rec.cassetteName).File
-	cassetteExists := rec.fs.IsFileExists(cassetteFile)
+	cassetteFile := cassette.New(r.cassetteName).File
+	cassetteExists := r.fs.IsFileExists(cassetteFile)
 
 	switch {
-	case rec.mode == ModeRecordOnly:
-		return cassette.New(rec.cassetteName), nil
-	case rec.mode == ModeReplayOnly && !cassetteExists:
+	case r.mode == ModeRecordOnly:
+		return cassette.New(r.cassetteName), nil
+	case r.mode == ModeReplayOnly && !cassetteExists:
 		return nil, fmt.Errorf("%w: %s", cassette.ErrCassetteNotFound, cassetteFile)
-	case rec.mode == ModeReplayOnly && cassetteExists:
-		return cassette.LoadWithFS(rec.cassetteName, rec.fs)
-	case rec.mode == ModeReplayWithNewEpisodes && !cassetteExists:
-		return cassette.New(rec.cassetteName), nil
-	case rec.mode == ModeReplayWithNewEpisodes && cassetteExists:
-		return cassette.LoadWithFS(rec.cassetteName, rec.fs)
-	case rec.mode == ModeRecordOnce && !cassetteExists:
-		return cassette.New(rec.cassetteName), nil
-	case rec.mode == ModeRecordOnce && cassetteExists:
-		return cassette.LoadWithFS(rec.cassetteName, rec.fs)
-	case rec.mode == ModePassthrough:
-		return cassette.New(rec.cassetteName), nil
+	case r.mode == ModeReplayOnly && cassetteExists:
+		return cassette.LoadWithFS(r.cassetteName, r.fs)
+	case r.mode == ModeReplayWithNewEpisodes && !cassetteExists:
+		return cassette.New(r.cassetteName), nil
+	case r.mode == ModeReplayWithNewEpisodes && cassetteExists:
+		return cassette.LoadWithFS(r.cassetteName, r.fs)
+	case r.mode == ModeRecordOnce && !cassetteExists:
+		return cassette.New(r.cassetteName), nil
+	case r.mode == ModeRecordOnce && cassetteExists:
+		return cassette.LoadWithFS(r.cassetteName, r.fs)
+	case r.mode == ModePassthrough:
+		return cassette.New(r.cassetteName), nil
 	default:
 		return nil, ErrInvalidMode
 	}
 }
 
 // getRoundTripper returns the [http.RoundTripper] used by the recorder.
-func (rec *Recorder) getRoundTripper() http.RoundTripper {
-	if rec.blockUnsafeMethods {
+func (r *Recorder) getRoundTripper() http.RoundTripper {
+	if r.blockUnsafeMethods {
 		return &blockUnsafeMethodsRoundTripper{
-			RoundTripper: rec.realTransport,
+			RoundTripper: r.realTransport,
 		}
 	}
 
-	return rec.realTransport
+	return r.realTransport
 }
 
 // requestHandler proxies requests to their original destination
@@ -585,26 +585,26 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 // Stop is used to stop the recorder and save any recorded
 // interactions if running in one of the recording modes. When
 // running in ModePassthrough no cassette will be saved on disk.
-func (rec *Recorder) Stop() error {
-	cassetteFile := rec.cassette.File
-	cassetteExists := rec.fs.IsFileExists(cassetteFile)
+func (r *Recorder) Stop() error {
+	cassetteFile := r.cassette.File
+	cassetteExists := r.fs.IsFileExists(cassetteFile)
 
 	// Nothing to do for ModeReplayOnly and ModePassthrough here
 	switch {
-	case rec.mode == ModeRecordOnly || rec.mode == ModeReplayWithNewEpisodes:
-		if err := rec.persistCassette(); err != nil {
+	case r.mode == ModeRecordOnly || r.mode == ModeReplayWithNewEpisodes:
+		if err := r.persistCassette(); err != nil {
 			return err
 		}
 
-	case rec.mode == ModeRecordOnce && !cassetteExists:
-		if err := rec.persistCassette(); err != nil {
+	case r.mode == ModeRecordOnce && !cassetteExists:
+		if err := r.persistCassette(); err != nil {
 			return err
 		}
 	}
 
 	// Apply on-recorder-stop hooks
-	for _, interaction := range rec.cassette.Interactions {
-		if err := rec.applyHooks(interaction, OnRecorderStopHook); err != nil {
+	for _, interaction := range r.cassette.Interactions {
+		if err := r.applyHooks(interaction, OnRecorderStopHook); err != nil {
 			return err
 		}
 	}
@@ -613,21 +613,21 @@ func (rec *Recorder) Stop() error {
 }
 
 // persisteCassette persists the cassette on disk for future re-use
-func (rec *Recorder) persistCassette() error {
+func (r *Recorder) persistCassette() error {
 	// Apply any before-save hooks
-	for _, interaction := range rec.cassette.Interactions {
-		if err := rec.applyHooks(interaction, BeforeSaveHook); err != nil {
+	for _, interaction := range r.cassette.Interactions {
+		if err := r.applyHooks(interaction, BeforeSaveHook); err != nil {
 			return err
 		}
 	}
 
-	return rec.cassette.SaveWithFS(rec.fs)
+	return r.cassette.SaveWithFS(r.fs)
 }
 
 // applyHooks applies the registered hooks of the given kind with the
 // specified interaction
-func (rec *Recorder) applyHooks(i *cassette.Interaction, kind HookKind) error {
-	for _, hook := range rec.hooks {
+func (r *Recorder) applyHooks(i *cassette.Interaction, kind HookKind) error {
+	for _, hook := range r.hooks {
 		if hook.Kind == kind {
 			if err := hook.Handler(i); err != nil {
 				return err
@@ -639,31 +639,31 @@ func (rec *Recorder) applyHooks(i *cassette.Interaction, kind HookKind) error {
 }
 
 // RoundTrip implements the [http.RoundTripper] interface
-func (rec *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
-	return rec.executeAndRecord(req, nil)
+func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r.executeAndRecord(req, nil)
 }
 
 // executeAndRecord is used internally by the HTTPMiddleware to allow recording a response on the server side
-func (rec *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Response) (*http.Response, error) {
+func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Response) (*http.Response, error) {
 	// Passthrough mode, use real transport
-	if rec.mode == ModePassthrough {
-		return rec.getRoundTripper().RoundTrip(req)
+	if r.mode == ModePassthrough {
+		return r.getRoundTripper().RoundTrip(req)
 	}
 
 	// Apply passthrough handler functions
-	for _, passthroughFunc := range rec.passthroughs {
+	for _, passthroughFunc := range r.passthroughs {
 		if passthroughFunc(req) {
-			return rec.getRoundTripper().RoundTrip(req)
+			return r.getRoundTripper().RoundTrip(req)
 		}
 	}
 
-	interaction, err := rec.requestHandler(req, serverResponse)
+	interaction, err := r.requestHandler(req, serverResponse)
 	if err != nil {
 		return nil, err
 	}
 
 	// Apply before-response-replay hooks
-	if err := rec.applyHooks(interaction, BeforeResponseReplayHook); err != nil {
+	if err := r.applyHooks(interaction, BeforeResponseReplayHook); err != nil {
 		return nil, err
 	}
 
@@ -672,7 +672,7 @@ func (rec *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Re
 		return nil, req.Context().Err()
 	default:
 		// Apply the duration defined in the interaction
-		if !rec.skipRequestLatency {
+		if !r.skipRequestLatency {
 			<-time.After(interaction.Response.Duration)
 		}
 
@@ -681,15 +681,15 @@ func (rec *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Re
 }
 
 // Mode returns recorder state
-func (rec *Recorder) Mode() Mode {
-	return rec.mode
+func (r *Recorder) Mode() Mode {
+	return r.mode
 }
 
 // GetDefaultClient returns an HTTP client with a pre-configured
 // transport
-func (rec *Recorder) GetDefaultClient() *http.Client {
+func (r *Recorder) GetDefaultClient() *http.Client {
 	client := &http.Client{
-		Transport: rec,
+		Transport: r,
 	}
 
 	return client
@@ -698,8 +698,8 @@ func (rec *Recorder) GetDefaultClient() *http.Client {
 // IsNewCassette returns true, if the recorder was started with a
 // new/empty cassette. Returns false, if it was started using an
 // existing cassette, which was loaded.
-func (rec *Recorder) IsNewCassette() bool {
-	return rec.cassette.IsNew
+func (r *Recorder) IsNewCassette() bool {
+	return r.cassette.IsNew
 }
 
 // IsRecording returns true, if the recorder is recording
@@ -712,13 +712,13 @@ func (rec *Recorder) IsNewCassette() bool {
 // present in the cassette, but will also record new ones, if they are
 // not part of the cassette already. In these cases the recorder is
 // considered to be recording for these modes.
-func (rec *Recorder) IsRecording() bool {
+func (r *Recorder) IsRecording() bool {
 	switch {
-	case rec.mode == ModeRecordOnly || rec.mode == ModeReplayWithNewEpisodes:
+	case r.mode == ModeRecordOnly || r.mode == ModeReplayWithNewEpisodes:
 		return true
-	case rec.mode == ModeReplayOnly || rec.mode == ModePassthrough:
+	case r.mode == ModeReplayOnly || r.mode == ModePassthrough:
 		return false
-	case rec.mode == ModeRecordOnce && rec.IsNewCassette():
+	case r.mode == ModeRecordOnce && r.IsNewCassette():
 		return true
 	default:
 		return false
