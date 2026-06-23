@@ -189,6 +189,7 @@ var ErrUnsafeRequestMethod = errors.New("request uses an unsafe method")
 
 type blockUnsafeMethodsRoundTripper struct {
 	RoundTripper http.RoundTripper
+	debugLogger  *slog.Logger
 }
 
 func (r *blockUnsafeMethodsRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -199,6 +200,10 @@ func (r *blockUnsafeMethodsRoundTripper) RoundTrip(req *http.Request) (*http.Res
 		http.MethodTrace:   true,
 	}
 	if _, ok := safeMethods[req.Method]; !ok {
+		r.debugLogger.Debug("unsafe method blocked",
+			"method", req.Method,
+			"url", req.URL.String(),
+		)
 		return nil, ErrUnsafeRequestMethod
 	}
 	return r.RoundTripper.RoundTrip(req)
@@ -424,7 +429,7 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 	logHandler := slog.NewTextHandler(r.debugWriter, &slog.HandlerOptions{Level: slog.LevelDebug})
 	r.debugLogger = slog.New(logHandler).With(
 		"component", "recorder",
-		"mode", r.mode,
+		"mode", r.mode.String(),
 	)
 	r.cassette.DebugLogger = slog.New(logHandler).With(
 		"component", "cassette",
@@ -497,6 +502,7 @@ func (r *Recorder) getRoundTripper() http.RoundTripper {
 	if r.blockUnsafeMethods {
 		return &blockUnsafeMethodsRoundTripper{
 			RoundTripper: r.realTransport,
+			debugLogger:  r.debugLogger,
 		}
 	}
 
@@ -588,7 +594,8 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 	var start time.Time
 	start = time.Now()
 	resp := serverResponse
-	if resp == nil {
+	switch resp {
+	case nil:
 		rec.debug("forwarding to real transport",
 			"method", r.Method,
 			"url", r.URL.String(),
@@ -598,9 +605,15 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 			rec.debug("real transport error", "error", err)
 			return nil, err
 		}
+	default:
+		rec.debug("got handler response",
+			"method", r.Method,
+			"url", r.URL.String(),
+			"status", resp.StatusCode,
+		)
 	}
 	requestDuration := time.Since(start)
-	rec.debug("real response received",
+	rec.debug("response received",
 		"status", resp.StatusCode,
 		"duration_ms", requestDuration.Milliseconds(),
 		"content_length", resp.ContentLength,
