@@ -159,6 +159,22 @@ const (
 	OnRecorderStopHook
 )
 
+// String implements the [fmt.Stringer] interface for [HookKind].
+func (hk HookKind) String() string {
+	switch hk {
+	case AfterCaptureHook:
+		return "AfterCapture"
+	case BeforeSaveHook:
+		return "BeforeSave"
+	case BeforeResponseReplayHook:
+		return "BeforeResponseReplay"
+	case OnRecorderStopHook:
+		return "OnRecorderStop"
+	default:
+		return fmt.Sprintf("HookKind(%d)", hk)
+	}
+}
+
 // Hook represents a function hook of a given kind. Depending on the hook kind,
 // the function will be invoked in different stages of the playback.
 type Hook struct {
@@ -701,10 +717,13 @@ func (r *Recorder) persistCassette() error {
 // specified interaction
 func (r *Recorder) applyHooks(i *cassette.Interaction, kind HookKind) error {
 	for _, hook := range r.hooks {
-		if hook.Kind == kind {
-			if err := hook.Handler(i); err != nil {
-				return err
-			}
+		if hook.Kind != kind {
+			continue
+		}
+		r.debug("applying hook", "kind", kind, "id", i.ID)
+		if err := hook.Handler(i); err != nil {
+			r.debug("hook returned error", "kind", kind, "id", i.ID, "error", err)
+			return err
 		}
 	}
 
