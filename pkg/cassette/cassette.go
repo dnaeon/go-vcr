@@ -654,10 +654,7 @@ func (c *Cassette) Save() error {
 func (c *Cassette) SaveWithFS(fs FS) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.debug("saving cassette",
-		"path", c.File,
-		"interaction_count", len(c.Interactions),
-	)
+	c.debug("saving cassette", "interaction_count", len(c.Interactions))
 
 	// Filter out interactions which should be discarded. While discarding
 	// interactions we should also fix the interaction IDs, so that we don't
@@ -687,11 +684,7 @@ func (c *Cassette) SaveWithFS(fs FS) error {
 	if err := fs.WriteFile(c.File, payload); err != nil {
 		return err
 	}
-	c.debug("cassette saved",
-		"path", c.File,
-		"bytes_written", len(payload),
-		"interactions_saved", len(c.Interactions),
-	)
+	c.debug("cassette saved", "bytes_written", len(payload), "interactions_saved", len(c.Interactions))
 
 	return nil
 }
