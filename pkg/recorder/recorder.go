@@ -448,6 +448,15 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 		"component", "cassette",
 		"file", r.cassette.File,
 	)
+
+	if !r.cassette.IsNew {
+		r.cassette.DebugLogger.Debug("cassette loaded",
+			"path", r.cassette.File,
+			"version", r.cassette.Version,
+			"interaction_count", len(r.cassette.Interactions),
+		)
+	}
+
 	r.debug("recorder initialized",
 		"cassette_name", r.cassette.Name,
 		"cassette_file", r.cassette.File,

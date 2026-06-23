@@ -578,7 +578,6 @@ func (c *Cassette) AddInteraction(i *Interaction) {
 	c.Interactions = append(c.Interactions, i)
 	c.debug("interaction added",
 		"id", i.ID,
-		"total", len(c.Interactions),
 		"request", summarizeCassetteRequest(i.Request),
 		"response", summarizeCassetteResponse(i.Response),
 	)
@@ -604,8 +603,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		// r.ParseForm returns missing form body error
 		r.Body = http.NoBody
 	}
-	c.debug("matching request", "total", len(c.Interactions))
-	c.debug("incoming request",
+	c.debug("matching request",
 		"method", r.Method,
 		"url", r.URL.String(),
 		"host", r.Host,
@@ -639,10 +637,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 			return i, nil
 		}
 	}
-	c.debug("no match",
-		"total", len(c.Interactions),
-		"already_replayed_count", replayed,
-	)
+	c.debug("no match", "already_replayed_count", replayed)
 
 	return nil, ErrInteractionNotFound
 }
