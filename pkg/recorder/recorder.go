@@ -36,7 +36,6 @@ import (
 	"net/http/httputil"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v4"
@@ -110,23 +109,6 @@ func (m Mode) String() string {
 // ErrInvalidMode is returned when attempting to start the recorder with invalid
 // mode
 var ErrInvalidMode = errors.New("invalid recorder mode")
-
-// debugResponseBodyLimit is the maximum number of body bytes rendered in the
-// compact response summary emitted on "replaying response" debug events.
-const debugResponseBodyLimit = 80
-
-// summarizeResponse renders a recorded [cassette.Response] as a compact,
-// single-line summary suitable for debug log attrs.
-func summarizeResponse(resp cassette.Response) string {
-	body := resp.Body
-	body = strings.ReplaceAll(body, "\n", `\n`)
-	body = strings.ReplaceAll(body, "\r", `\r`)
-	if len(body) > debugResponseBodyLimit {
-		body = body[:debugResponseBodyLimit] + "..."
-	}
-
-	return fmt.Sprintf("%d body=%q", resp.Code, body)
-}
 
 // HookFunc represents a function, which will be invoked in different stages of
 // the playback. The hook functions allow for plugging in to the playback and
@@ -790,7 +772,7 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 		r.debug("replaying response",
 			"id", interaction.ID,
 			"status", interaction.Response.Code,
-			"response", summarizeResponse(interaction.Response),
+			"response", interaction.Response,
 		)
 
 		return interaction.GetHTTPResponse()

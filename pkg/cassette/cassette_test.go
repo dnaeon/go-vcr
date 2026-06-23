@@ -423,7 +423,7 @@ func TestSummarizeCassetteRequest(t *testing.T) {
 		Body:   "",
 	}
 	want := `GET https://example.com/foo body=""`
-	if got := summarizeCassetteRequest(req); got != want {
+	if got := req.String(); got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
@@ -434,7 +434,7 @@ func TestSummarizeCassetteResponse(t *testing.T) {
 		Body: "ok",
 	}
 	want := `200 body="ok"`
-	if got := summarizeCassetteResponse(resp); got != want {
+	if got := resp.String(); got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
