@@ -760,7 +760,7 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 		}
 
 		r.debug("replaying response",
-			"interaction_id", interaction.ID,
+			"id", interaction.ID,
 			"status", interaction.Response.Code,
 			"response", summarizeResponse(interaction.Response),
 		)
