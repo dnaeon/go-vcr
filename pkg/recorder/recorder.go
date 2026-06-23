@@ -442,7 +442,6 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 
 	if !r.cassette.IsNew {
 		r.cassette.DebugLogger.Debug("cassette loaded",
-			"path", r.cassette.File,
 			"version", r.cassette.Version,
 			"interaction_count", len(r.cassette.Interactions),
 		)
