@@ -12,7 +12,7 @@ func (rec *Recorder) HTTPMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec.debug("server request received",
 			"method", r.Method,
-			"url", r.URL.String(),
+			"url", r.URL,
 		)
 		ww := newPassthrough(w)
 
