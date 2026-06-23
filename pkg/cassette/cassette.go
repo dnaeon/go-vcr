@@ -577,7 +577,7 @@ func (c *Cassette) AddInteraction(i *Interaction) {
 	c.nextInteractionId += 1
 	c.Interactions = append(c.Interactions, i)
 	c.debug("interaction added",
-		"interaction_id", i.ID,
+		"id", i.ID,
 		"total", len(c.Interactions),
 		"request", summarizeCassetteRequest(i.Request),
 		"response", summarizeCassetteResponse(i.Response),
@@ -604,7 +604,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		// r.ParseForm returns missing form body error
 		r.Body = http.NoBody
 	}
-	c.debug("matching request", "interactions_total", len(c.Interactions))
+	c.debug("matching request", "total", len(c.Interactions))
 	c.debug("incoming request",
 		"method", r.Method,
 		"url", r.URL.String(),
@@ -619,7 +619,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		eligible := c.ReplayableInteractions || !i.replayed
 		matched := eligible && c.Matcher(r, i.Request)
 		attrs := []any{
-			"interaction_id", i.ID,
+			"id", i.ID,
 			"already_replayed", i.replayed,
 			"eligible", eligible,
 			"matched", matched,
@@ -632,7 +632,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		if matched {
 			i.replayed = true
 			c.debug("match found",
-				"interaction_id", i.ID,
+				"id", i.ID,
 				"request", summarizeCassetteRequest(i.Request),
 			)
 
@@ -640,7 +640,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		}
 	}
 	c.debug("no match",
-		"interactions_total", len(c.Interactions),
+		"total", len(c.Interactions),
 		"already_replayed_count", replayed,
 	)
 
@@ -668,7 +668,7 @@ func (c *Cassette) SaveWithFS(fs FS) error {
 	interactions := make([]*Interaction, 0)
 	for _, i := range c.Interactions {
 		if i.DiscardOnSave {
-			c.debug("discarding interaction", "interaction_id", i.ID)
+			c.debug("discarding interaction", "id", i.ID)
 		} else {
 			i.ID = nextId
 			interactions = append(interactions, i)
