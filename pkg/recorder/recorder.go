@@ -35,6 +35,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -192,14 +193,17 @@ type blockUnsafeMethodsRoundTripper struct {
 	debugLogger  *slog.Logger
 }
 
+// safeMethods enumerates the HTTP methods that are considered safe per
+// RFC 9110, section 9.2.1.
+var safeMethods = []string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodOptions,
+	http.MethodTrace,
+}
+
 func (r *blockUnsafeMethodsRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	safeMethods := map[string]bool{
-		http.MethodGet:     true,
-		http.MethodHead:    true,
-		http.MethodOptions: true,
-		http.MethodTrace:   true,
-	}
-	if _, ok := safeMethods[req.Method]; !ok {
+	if !slices.Contains(safeMethods, req.Method) {
 		r.debugLogger.Debug("unsafe method blocked",
 			"method", req.Method,
 			"url", req.URL.String(),

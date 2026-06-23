@@ -29,6 +29,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -370,10 +371,7 @@ func TestFormatBody(t *testing.T) {
 	})
 
 	t.Run("body larger than debugBodyLimit is truncated", func(t *testing.T) {
-		in := make([]byte, debugBodyLimit+128)
-		for i := range in {
-			in[i] = 'a'
-		}
+		in := slices.Repeat([]byte{'a'}, debugBodyLimit+128)
 		got := formatBody(in)
 		if !strings.HasPrefix(got, strings.Repeat("a", debugBodyLimit)) {
 			t.Fatalf("truncated body does not start with the first debugBodyLimit bytes")

@@ -401,7 +401,7 @@ func (m *defaultMatcher) bodyMatches(r *http.Request, i Request) bool {
 			return false
 		}
 
-		r.Body = io.NopCloser(bytes.NewBuffer(buffer.Bytes()))
+		r.Body = io.NopCloser(bytes.NewReader(buffer.Bytes()))
 		if buffer.String() != i.Body {
 			return false
 		}
