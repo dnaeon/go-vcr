@@ -79,26 +79,57 @@ additional examples.
 ## Custom YAML Marshaling Function
 
 If you need control how YAML is encoded, set `WithMarshalFunc` with a custom
-func. This default to `yaml.Marshal`.
+func. This defaults to `yaml.Marshal`.
 
 ```go
-marshalFunc := func(in any) (out []byte, err error) {
-	var buff bytes.Buffer
-	enc := yaml.NewEncoder(&buff)
+package marshalfunc_test
 
-	// Example of custom options from
-	// https://pkg.go.dev/go.yaml.in/yaml/v4
-	enc.CompactSeqIndent()
-	enc.SetIndent(4)
+import (
+	"bytes"
+	"path/filepath"
+	"strings"
+	"testing"
 
-	if err := enc.Encode(in); err != nil {
-		return nil, err
+	"go.yaml.in/yaml/v4"
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
+)
+
+func TestCustomMarshalFunc(t *testing.T) {
+	marshalFunc := func(in any) ([]byte, error) {
+		var buf bytes.Buffer
+		enc := yaml.NewEncoder(&buf)
+
+		// Example of custom options from
+		// https://pkg.go.dev/go.yaml.in/yaml/v4
+		enc.CompactSeqIndent()
+		enc.SetIndent(4)
+
+		if err := enc.Encode(in); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
 	}
-	return buff.Bytes(), nil
-}
 
-rec, err := recorder.New("cassette_name", recorder.WithMarshalFunc(marshalFunc))
-// ...
+	r, err := recorder.New(
+		filepath.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")),
+		recorder.WithMarshalFunc(marshalFunc),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	client := r.GetDefaultClient()
+	resp, err := client.Get("https://go.dev/VERSION?m=text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
 ```
 
 ## Custom Request Matching
@@ -110,41 +141,56 @@ function.
 For example, the following matcher will match on method, URL and body:
 
 ``` go
+package matcher_test
+
+import (
+	"bytes"
+	"io"
+	"net/http"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
+)
 
 func customMatcher(r *http.Request, i cassette.Request) bool {
 	if r.Body == nil || r.Body == http.NoBody {
 		return cassette.DefaultMatcher(r, i)
 	}
 
-	var reqBody []byte
-	var err error
-	reqBody, err = io.ReadAll(r.Body)
+	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Fatal("failed to read request body")
+		return false
 	}
 	r.Body.Close()
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+	r.Body = io.NopCloser(bytes.NewBuffer(reqBody))
 
 	return r.Method == i.Method && r.URL.String() == i.URL && string(reqBody) == i.Body
 }
 
-...
+func TestCustomMatcher(t *testing.T) {
+	r, err := recorder.New(
+		filepath.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")),
+		recorder.WithMatcher(customMatcher),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
 
-// Recorder options
-opts := []recorder.Option{
-	recorder.WithMatcher(customMatcher),
+	client := r.GetDefaultClient()
+	resp, err := client.Get("https://go.dev/VERSION?m=text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
 }
-
-rec, err := recorder.New("testdata/matchers", opts...)
-if err != nil {
-        log.Fatal(err)
-}
-defer rec.Stop() // Make sure recorder is stopped once done with it
-
-client := rec.GetDefaultClient()
-resp, err := client.Get("https://www.google.com/")
-
-...
 ```
 
 ## Hooks
@@ -173,25 +219,45 @@ Here is an example that removes the `Authorization` header from all requests
 right after capturing a new interaction.
 
 ``` go
-// A hook which removes Authorization headers from all requests
-hook := func(i *cassette.Interaction) error {
-	delete(i.Request.Headers, "Authorization")
-	return nil
-}
+package hooks_test
 
-// Recorder options
-opts := []recorder.Option{
-	recorder.WithHook(hook, recorder.AfterCaptureHook),
-	recorder.WithMatcher(cassette.NewDefaultMatcher(cassette.WithIgnoreAuthorization())),
-}
+import (
+	"path/filepath"
+	"strings"
+	"testing"
 
-r, err := recorder.New("testdata/filters", opts...)
-if err != nil {
-	log.Fatal(err)
-}
-defer r.Stop() // Make sure recorder is stopped once done with it
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
+)
 
-...
+func TestAfterCaptureHook(t *testing.T) {
+	// A hook which removes Authorization headers from all requests
+	hook := func(i *cassette.Interaction) error {
+		delete(i.Request.Headers, "Authorization")
+		return nil
+	}
+
+	r, err := recorder.New(
+		filepath.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")),
+		recorder.WithHook(hook, recorder.AfterCaptureHook),
+		recorder.WithMatcher(cassette.NewDefaultMatcher(cassette.WithIgnoreAuthorization())),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	client := r.GetDefaultClient()
+	resp, err := client.Get("https://go.dev/VERSION?m=text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
 ```
 
 Hooks added using `recorder.AfterCaptureHook` are applied right after an
@@ -209,28 +275,47 @@ they are saved on disk. For that purpose you should be using a `BeforeSaveHook`,
 e.g.
 
 ``` go
-// Your test code will continue to see the real access token and
-// it is redacted before the recorded interactions are saved on disk
-hook := func(i *cassette.Interaction) error {
-	if strings.Contains(i.Request.URL, "/oauth/token") {
-		i.Response.Body = `{"access_token": "[REDACTED]"}`
+package hooks_test
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
+)
+
+func TestBeforeSaveHook(t *testing.T) {
+	// Your test code will continue to see the real access token and
+	// it is redacted before the recorded interactions are saved on disk
+	hook := func(i *cassette.Interaction) error {
+		if strings.Contains(i.Request.URL, "/oauth/token") {
+			i.Response.Body = `{"access_token": "[REDACTED]"}`
+		}
+		return nil
 	}
 
-	return nil
-}
+	r, err := recorder.New(
+		filepath.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")),
+		recorder.WithHook(hook, recorder.BeforeSaveHook),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
 
-// Recorder options
-opts := []recorder.Option{
-	recorder.WithHook(hook, recorder.BeforeSaveHook),
+	client := r.GetDefaultClient()
+	resp, err := client.Get("https://go.dev/VERSION?m=text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
 }
-
-r, err := recorder.New("testdata/filters", opts...)
-if err != nil {
-	log.Fatal(err)
-}
-defer r.Stop() // Make sure recorder is stopped once done with it
-
-...
 ```
 
 ## Passing Through Requests
@@ -245,22 +330,96 @@ recorder.
 Here's an example to pass through requests to a specific endpoint:
 
 ``` go
-passthrough := func(req *http.Request) bool {
-	return req.URL.Path == "/login"
-}
+package passthrough_test
 
-// Recorder options
-opts := []recorder.Option{
-	recorder.WithPassthrough(passthrough),
-}
+import (
+	"net/http"
+	"path/filepath"
+	"strings"
+	"testing"
 
-r, err := recorder.New("testdata/filters", opts...)
-if err != nil {
-	log.Fatal(err)
-}
-defer r.Stop() // Make sure recorder is stopped once done with it
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
+)
 
-...
+func TestPassthrough(t *testing.T) {
+	passthrough := func(req *http.Request) bool {
+		return req.URL.Path == "/login"
+	}
+
+	r, err := recorder.New(
+		filepath.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")),
+		recorder.WithPassthrough(passthrough),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	client := r.GetDefaultClient()
+	resp, err := client.Get("https://go.dev/VERSION?m=text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
+```
+
+## Debug Tracing
+
+When a test fails because the recorder did not match the request you expected,
+it is often useful to see exactly what the recorder is doing.
+
+The `recorder.WithDebugWriter` option allows API clients to configure an
+`io.Writer` that is used to write debug events via an internal `slog.Logger`
+instance.
+
+``` go
+package debug_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
+)
+
+func TestDebugTrace(t *testing.T) {
+	r, err := recorder.New(
+		filepath.Join("testdata", strings.ReplaceAll(t.Name(), "/", "_")),
+		recorder.WithDebugWriter(os.Stderr),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := r.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	client := r.GetDefaultClient()
+	resp, err := client.Get("https://go.dev/VERSION?m=text")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
+```
+
+The debug writer may also be enabled without changing the code by setting the
+`VCR_DEBUG` environment variable to `true`.
+
+An explicit `recorder.WithDebugWriter` option always takes precedence over the
+environment variable.
+
+``` sh
+VCR_DEBUG=true go test ./...
 ```
 
 ## Server Side
