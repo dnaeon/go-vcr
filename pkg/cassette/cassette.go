@@ -68,18 +68,6 @@ func summarizeBody(b string) string {
 	return s
 }
 
-// summarizeCassetteRequest renders a recorded [Request] as a compact,
-// single-line summary suitable for grep-friendly debug log attrs.
-func summarizeCassetteRequest(req Request) string {
-	return fmt.Sprintf("%s %s body=%q", req.Method, req.URL, summarizeBody(req.Body))
-}
-
-// summarizeCassetteResponse renders a recorded [Response] as a compact,
-// single-line summary.
-func summarizeCassetteResponse(resp Response) string {
-	return fmt.Sprintf("%d body=%q", resp.Code, summarizeBody(resp.Body))
-}
-
 // formatBody returns a human-readable rendering of the given body bytes for
 // inclusion in a debug dump. Binary content is replaced with a "<binary, N
 // bytes>" placeholder so that the trace stays readable in a text-based slog
@@ -204,6 +192,14 @@ type Request struct {
 	Method string `yaml:"method"`
 }
 
+// String implements [fmt.Stringer]. It renders the recorded request as a
+// compact, single-line summary suitable for inclusion in a debug log
+// attribute. The body is bounded and stripped of newlines so it fits cleanly
+// in a key=value line.
+func (r Request) String() string {
+	return fmt.Sprintf("%s %s body=%q", r.Method, r.URL, summarizeBody(r.Body))
+}
+
 // Response represents a server response as recorded in the cassette file.
 type Response struct {
 	Proto            string      `yaml:"proto"`
@@ -228,6 +224,13 @@ type Response struct {
 
 	// Response duration
 	Duration time.Duration `yaml:"duration"`
+}
+
+// String implements [fmt.Stringer]. It renders the recorded response as a
+// compact, single-line summary suitable for inclusion in a debug log
+// attribute.
+func (r Response) String() string {
+	return fmt.Sprintf("%d body=%q", r.Code, summarizeBody(r.Body))
 }
 
 // Interaction type contains a pair of request/response for a single HTTP
@@ -578,8 +581,8 @@ func (c *Cassette) AddInteraction(i *Interaction) {
 	c.Interactions = append(c.Interactions, i)
 	c.debug("interaction added",
 		"id", i.ID,
-		"request", summarizeCassetteRequest(i.Request),
-		"response", summarizeCassetteResponse(i.Response),
+		"request", i.Request,
+		"response", i.Response,
 	)
 }
 
@@ -621,7 +624,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 			"already_replayed", i.replayed,
 			"eligible", eligible,
 			"matched", matched,
-			"recorded_summary", summarizeCassetteRequest(i.Request),
+			"recorded_summary", i.Request,
 		}
 		if !matched && eligible {
 			attrs = append(attrs, "dump", dumpCassetteRequest(i.Request))
@@ -631,7 +634,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 			i.replayed = true
 			c.debug("match found",
 				"id", i.ID,
-				"request", summarizeCassetteRequest(i.Request),
+				"request", i.Request,
 			)
 
 			return i, nil
