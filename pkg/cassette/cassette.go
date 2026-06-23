@@ -678,7 +678,6 @@ func (c *Cassette) SaveWithFS(fs FS) error {
 	// Marshal to YAML and save interactions
 	data, err := c.MarshalFunc(c)
 	if err != nil {
-		c.debug("cassette marshal failed", "error", err)
 		return err
 	}
 
@@ -686,7 +685,6 @@ func (c *Cassette) SaveWithFS(fs FS) error {
 	// http://www.yaml.org/spec/1.2/spec.html#id2760395
 	payload := append([]byte("---\n"), data...)
 	if err := fs.WriteFile(c.File, payload); err != nil {
-		c.debug("cassette write failed", "path", c.File, "error", err)
 		return err
 	}
 	c.debug("cassette saved",
