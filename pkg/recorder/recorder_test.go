@@ -53,7 +53,7 @@ type testCase struct {
 }
 
 func (tc testCase) run(ctx context.Context, client *http.Client, serverUrl string) error {
-	url := fmt.Sprintf("%s%s", serverUrl, tc.path)
+	url := serverUrl + tc.path
 	req, err := http.NewRequest(tc.method, url, strings.NewReader(tc.body))
 	if err != nil {
 		return err
