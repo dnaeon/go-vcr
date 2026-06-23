@@ -513,6 +513,7 @@ func (r *Recorder) getRoundTripper() http.RoundTripper {
 // If serverResponse is provided, this is used for the recording instead of using RoundTrip
 func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Response) (*cassette.Interaction, error) {
 	if err := r.Context().Err(); err != nil {
+		rec.debug("request cancelled before handling", "error", err)
 		return nil, err
 	}
 
@@ -774,7 +775,9 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 
 	select {
 	case <-req.Context().Done():
-		return nil, req.Context().Err()
+		err := req.Context().Err()
+		r.debug("request cancelled during replay", "error", err)
+		return nil, err
 	default:
 		// Apply the duration defined in the interaction
 		if !r.skipRequestLatency {
