@@ -608,7 +608,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 	}
 	c.debug("matching request",
 		"method", r.Method,
-		"url", r.URL.String(),
+		"url", r.URL,
 		"host", r.Host,
 		"dump", dumpHTTPRequest(r),
 	)
@@ -624,7 +624,7 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 			"already_replayed", i.replayed,
 			"eligible", eligible,
 			"matched", matched,
-			"recorded_summary", i.Request,
+			"request", i.Request,
 		}
 		if !matched && eligible {
 			attrs = append(attrs, "dump", dumpCassetteRequest(i.Request))
