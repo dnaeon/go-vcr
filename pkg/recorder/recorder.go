@@ -764,7 +764,6 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 
 	interaction, err := r.requestHandler(req, serverResponse)
 	if err != nil {
-		r.debug("request handler error", "error", err)
 		return nil, err
 	}
 
