@@ -526,6 +526,7 @@ type Cassette struct {
 	MarshalFunc MarshalFunc `yaml:"-"`
 
 	// DebugLogger is an [slog.Logger] which is used to emit debug events.
+	// To enable debugging, see [recorder.WithDebugWriter] option.
 	DebugLogger *slog.Logger `yaml:"-"`
 }
 
