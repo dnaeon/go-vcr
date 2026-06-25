@@ -1,3 +1,113 @@
+* 2026-06-25
+
+Release =v4.0.7= has been tagged.
+
+Added support for emitting debug log events from the =recorder= and =cassette=
+packages, which makes it easier to diagnose request matching failures and
+understand what the recorder is doing during a test run. See [[https://github.com/dnaeon/go-vcr/issues/108][#108]] and [[https://github.com/dnaeon/go-vcr/pull/148][#148]] for
+more details.
+
+The new =recorder.WithDebugWriter= option configures an =io.Writer= that
+receives a structured trace of recorder lifecycle events, per-request dispatch,
+match attempts (including a wire-format dump of the incoming request and each
+recorded interaction it was compared against), hook invocations, recorded
+interactions, context cancellations, and cassette save outcomes.
+
+The trace is emitted via =log/slog= with a text handler at =slog.LevelDebug=.
+
+The debug writer may also be enabled via the =VCR_DEBUG= environment
+variable. When =VCR_DEBUG= is set to =true=, and =recorder.WithDebugWriter= has
+not been used in a test, them the debug trace is written to =os.Stderr=.
+
+An explicit =recorder.WithDebugWriter= always takes precedence over the
+environment variable.
+
+Other changes in this release:
+
+- =fmt.Stringer= is now implemented for =recorder.Mode= and =recorder.HookKind=,
+  which produces human-readable names (e.g. =RecordOnce=, =BeforeSave=) instead
+  of integer values in debug output and error messages.
+- =fmt.Stringer= is now implemented for =cassette.Request= and
+  =cassette.Response=, which renders a compact, single-line summary of the
+  recorded request/response that is suitable for use as a value in a debug log
+  attribute.
+- The =sync.Mutex= previously embedded in =cassette.Cassette= is now an
+  unexported field. This removes the previously-exposed =Lock= and =Unlock=
+  methods, which were never intended to be part of the public API.
+- Bumped the YAML dependency to =go.yaml.in/yaml/v4= (=v4.0.0-rc.6=).
+
+* 2025-11-25
+
+Release =v4.0.6= has been tagged.
+
+Added the =recorder.WithMarshalFunc= option, which configures a custom YAML
+marshalling function for the cassette. This allows customisation of the YAML
+encoding process such as setting string literal style and the like. See [[https://github.com/dnaeon/go-vcr/pull/129][#129]] and
+[[https://github.com/dnaeon/go-vcr/pull/132][#132]] for more details.
+
+Migrated back to =go.yaml.in/yaml/v4=
+
+* 2025-08-17
+
+Release =v4.0.5= has been tagged.
+
+Added support for storing cassettes in any data source by introducing the
+=cassette.FS= interface and the =recorder.WithFS= option. The default
+implementation reads and writes cassettes from the local filesystem; alternative
+implementations can target in-memory stores, mocks, or any other backend. See
+[[https://github.com/dnaeon/go-vcr/pull/125][#125]] for more details.
+
+Replaced =gopkg.in/yaml.v3= with =github.com/goccy/go-yaml= as the YAML
+implementation backing the cassette serialiser. See [[https://github.com/dnaeon/go-vcr/pull/126][#126]] for more details.
+
+Various test-related improvements with no functional change. See [[https://github.com/dnaeon/go-vcr/pull/120][#120]] for more
+details.
+
+* 2025-06-27
+
+Release =v4.0.4= has been tagged.
+
+The recorder now always calls =http.Request.ParseForm= before recording an
+interaction. This makes the recorded =Form= field consistent across requests
+regardless of how the caller constructed them. See [[https://github.com/dnaeon/go-vcr/pull/122][#122]] for more details.
+
+*NOTE*: Cassettes may need to be re-created as a result of this change.
+
+* 2025-06-10
+
+Release =v4.0.3= has been tagged.
+
+The cassette YAML serialization now uses =omitempty= for fields whose zero-value
+carries no useful information. See [[https://github.com/dnaeon/go-vcr/pull/110][#110]] for more details.
+
+The =cassette.ErrCassetteNotFound= sentinel is now wrapped with the number of
+recorded interactions when returned. See [[https://github.com/dnaeon/go-vcr/pull/117][#117]] for more details.
+
+Fixed an issue where the recorded =Form= field captured only =PostForm= values,
+missing those derived from the query string. The recorder now captures the full
+form. See [[https://github.com/dnaeon/go-vcr/pull/118][#118]] for more details.
+
+Various test-related improvements with no functional change. See [[https://github.com/dnaeon/go-vcr/pull/111][#111]] for more
+details.
+
+Documentation updates: see [[https://github.com/dnaeon/go-vcr/pull/115][#115]].
+
+* 2024-11-27
+
+Release =v4.0.2= has been tagged.
+
+Added two new =cassette.DefaultMatcherOption= helpers for ignoring HTTP
+headers during matching:
+
+- =cassette.WithIgnoreAuthorization= - ignores the =Authorization= header.
+- =cassette.WithIgnoreHeaders= - ignores the headers supplied to it.
+
+See [[https://github.com/dnaeon/go-vcr/pull/103][#103]] and [[https://github.com/dnaeon/go-vcr/pull/104][#104]] for more details.
+
+Fixed a panic when matching requests with a =nil= body. The recorder now sets
+=http.NoBody= in this case so the matcher can proceed safely. See [[https://github.com/dnaeon/go-vcr/pull/105][#105]] for more
+details.
+
 * 2024-08-19
 
 Release =v4.0.0= has been tagged.
