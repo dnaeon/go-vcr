@@ -78,7 +78,7 @@ func (tc testCase) run(ctx context.Context, client *http.Client, serverUrl strin
 	}
 
 	if resp.StatusCode != tc.wantStatus {
-		return fmt.Errorf("want status: %q, got status: %q", resp.StatusCode, tc.wantStatus)
+		return fmt.Errorf("want status: %d, got status: %d", tc.wantStatus, resp.StatusCode)
 	}
 
 	if resp.ContentLength != int64(tc.wantContentLength) {
@@ -206,7 +206,7 @@ func TestRecordOnceMode(t *testing.T) {
 
 		recordedStatus := c.Interactions[i].Response.Code
 		if test.wantStatus != recordedStatus {
-			t.Fatalf("got recorded status: %q, want recorded status: %q", test.wantStatus, recordedStatus)
+			t.Fatalf("got recorded status: %d, want recorded status: %d", recordedStatus, test.wantStatus)
 		}
 	}
 
