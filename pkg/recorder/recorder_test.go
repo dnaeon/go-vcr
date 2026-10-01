@@ -1519,3 +1519,68 @@ func TestVCRDebugEnvOverriddenByWithDebugWriter(t *testing.T) {
 		t.Fatalf("WithDebugWriter should have received the trace, got buf:\n%s", buf.String())
 	}
 }
+
+func TestReplayMismatchDescriptiveError(t *testing.T) {
+	t.Parallel()
+
+	server := newEchoHttpServer()
+	defer server.Close()
+
+	cassPath := t.TempDir()
+
+	// Record an interaction
+	rec, err := recorder.New(cassPath, recorder.WithMode(recorder.ModeRecordOnce))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := rec.GetDefaultClient()
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/foo?page=1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Custom-Header", "original")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if err := rec.Stop(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Replay with different header and query parameter in ModeReplayOnly
+	rec, err = recorder.New(cassPath, recorder.WithMode(recorder.ModeReplayOnly))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Stop()
+
+	client = rec.GetDefaultClient()
+	req, err = http.NewRequest(http.MethodGet, server.URL+"/api/v1/foo?page=2", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Custom-Header", "modified")
+	_, err = client.Do(req)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	urlErr, ok := err.(*url.Error)
+	if !ok {
+		t.Fatalf("expected *url.Error, got %T", err)
+	}
+	if !errors.Is(urlErr.Err, cassette.ErrInteractionNotFound) {
+		t.Fatalf("expected ErrInteractionNotFound, got %v", urlErr.Err)
+	}
+
+	errMsg := urlErr.Err.Error()
+	if !strings.Contains(errMsg, "query mismatch") || !strings.Contains(errMsg, "parameter \"page\" mismatch") {
+		t.Fatalf("expected query mismatch detail in error, got: %s", errMsg)
+	}
+	if !strings.Contains(errMsg, "header mismatch") || !strings.Contains(errMsg, "X-Custom-Header") {
+		t.Fatalf("expected header mismatch detail in error, got: %s", errMsg)
+	}
+}
