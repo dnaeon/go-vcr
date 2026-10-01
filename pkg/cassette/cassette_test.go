@@ -25,6 +25,7 @@
 package cassette
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -493,4 +494,80 @@ func TestDumpCassetteRequest(t *testing.T) {
 	if !strings.Contains(got, `{"x":1}`) {
 		t.Fatalf("dump missing body: %q", got)
 	}
+}
+
+func TestRequestContext(t *testing.T) {
+	t.Run("default context is background", func(t *testing.T) {
+		req := Request{}
+		if req.Context() != context.Background() {
+			t.Fatalf("expected context.Background(), got %v", req.Context())
+		}
+	})
+
+	t.Run("WithContext updates context", func(t *testing.T) {
+		type testKey struct{}
+		ctx := context.WithValue(context.Background(), testKey{}, "val123")
+		req := Request{}.WithContext(ctx)
+		if req.Context().Value(testKey{}) != "val123" {
+			t.Fatalf("expected context value val123, got %v", req.Context().Value(testKey{}))
+		}
+	})
+
+	t.Run("WithContext panics on nil context", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatalf("expected panic on nil context")
+			}
+		}()
+		_ = Request{}.WithContext(nil)
+	})
+
+	t.Run("GetHTTPRequest and GetHTTPResponse propagate context", func(t *testing.T) {
+		type testKey struct{}
+		ctx := context.WithValue(context.Background(), testKey{}, "val456")
+		interaction := &Interaction{
+			Request: Request{
+				Method: "GET",
+				URL:    "http://example.com/test",
+			}.WithContext(ctx),
+			Response: Response{
+				Code:   http.StatusOK,
+				Status: "200 OK",
+			},
+		}
+
+		httpReq, err := interaction.GetHTTPRequest()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if httpReq.Context().Value(testKey{}) != "val456" {
+			t.Fatalf("expected context value val456, got %v", httpReq.Context().Value(testKey{}))
+		}
+
+		httpResp, err := interaction.GetHTTPResponse()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if httpResp.Request.Context().Value(testKey{}) != "val456" {
+			t.Fatalf("expected context value val456 on response request, got %v", httpResp.Request.Context().Value(testKey{}))
+		}
+
+		// Also verify explicit WithContext methods
+		customCtx := context.WithValue(context.Background(), testKey{}, "override")
+		httpReqCustom, err := interaction.GetHTTPRequestWithContext(customCtx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if httpReqCustom.Context().Value(testKey{}) != "override" {
+			t.Fatalf("expected overridden context value, got %v", httpReqCustom.Context().Value(testKey{}))
+		}
+
+		httpRespCustom, err := interaction.GetHTTPResponseWithContext(customCtx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if httpRespCustom.Request.Context().Value(testKey{}) != "override" {
+			t.Fatalf("expected overridden context value on response request, got %v", httpRespCustom.Request.Context().Value(testKey{}))
+		}
+	})
 }

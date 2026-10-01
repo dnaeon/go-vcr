@@ -646,7 +646,7 @@ func (rec *Recorder) requestHandler(r *http.Request, serverResponse *http.Respon
 			Headers:          r.Header,
 			URL:              r.URL.String(),
 			Method:           r.Method,
-		},
+		}.WithContext(r.Context()),
 		Response: cassette.Response{
 			Status:           resp.Status,
 			Code:             resp.StatusCode,
@@ -770,6 +770,9 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 		return nil, err
 	}
 
+	// Preserve the current request context on the interaction request.
+	interaction.Request = interaction.Request.WithContext(req.Context())
+
 	// Apply before-response-replay hooks
 	if err := r.applyHooks(interaction, BeforeResponseReplayHook); err != nil {
 		return nil, err
@@ -793,7 +796,13 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 			"response", interaction.Response,
 		)
 
-		return interaction.GetHTTPResponse()
+		resp, err := interaction.GetHTTPResponseWithContext(req.Context())
+		if err != nil {
+			return nil, err
+		}
+		resp.Request = req
+
+		return resp, nil
 	}
 }
 
