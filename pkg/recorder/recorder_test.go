@@ -1519,3 +1519,102 @@ func TestVCRDebugEnvOverriddenByWithDebugWriter(t *testing.T) {
 		t.Fatalf("WithDebugWriter should have received the trace, got buf:\n%s", buf.String())
 	}
 }
+
+func TestPreserveRequestContext(t *testing.T) {
+	t.Parallel()
+	type contextKey string
+	const key contextKey = "proxy-key"
+
+	server := newEchoHttpServer()
+	defer server.Close()
+	cassPath := t.TempDir()
+
+	var capturedKeyVal any
+	var savedKeyVal any
+	var replayedKeyVal any
+
+	// 1. Record mode
+	rec, err := recorder.New(
+		cassPath,
+		recorder.WithMode(recorder.ModeRecordOnly),
+		recorder.WithHook(func(i *cassette.Interaction) error {
+			capturedKeyVal = i.Request.Context().Value(key)
+			return nil
+		}, recorder.AfterCaptureHook),
+		recorder.WithHook(func(i *cassette.Interaction) error {
+			savedKeyVal = i.Request.Context().Value(key)
+			return nil
+		}, recorder.BeforeSaveHook),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := rec.GetDefaultClient()
+	recordCtx := context.WithValue(context.Background(), key, "record-value")
+	req, err := http.NewRequestWithContext(recordCtx, http.MethodGet, server.URL+"/api/v1/context", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if resp.Request != req {
+		t.Errorf("expected resp.Request to equal original req, got %v", resp.Request)
+	}
+	if val := resp.Request.Context().Value(key); val != "record-value" {
+		t.Errorf("expected context value record-value on resp.Request, got %v", val)
+	}
+
+	if err := rec.Stop(); err != nil {
+		t.Fatal(err)
+	}
+
+	if capturedKeyVal != "record-value" {
+		t.Errorf("expected captured context value record-value in AfterCaptureHook, got %v", capturedKeyVal)
+	}
+	if savedKeyVal != "record-value" {
+		t.Errorf("expected saved context value record-value in BeforeSaveHook, got %v", savedKeyVal)
+	}
+
+	// 2. Replay mode
+	replayRec, err := recorder.New(
+		cassPath,
+		recorder.WithMode(recorder.ModeReplayOnly),
+		recorder.WithHook(func(i *cassette.Interaction) error {
+			replayedKeyVal = i.Request.Context().Value(key)
+			return nil
+		}, recorder.BeforeResponseReplayHook),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer replayRec.Stop()
+
+	replayClient := replayRec.GetDefaultClient()
+	replayCtx := context.WithValue(context.Background(), key, "replay-value")
+	replayReq, err := http.NewRequestWithContext(replayCtx, http.MethodGet, server.URL+"/api/v1/context", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	replayResp, err := replayClient.Do(replayReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayResp.Body.Close()
+
+	if replayResp.Request != replayReq {
+		t.Errorf("expected replayResp.Request to equal replayReq, got %v", replayResp.Request)
+	}
+	if val := replayResp.Request.Context().Value(key); val != "replay-value" {
+		t.Errorf("expected context value replay-value on replayResp.Request, got %v", val)
+	}
+	if replayedKeyVal != "replay-value" {
+		t.Errorf("expected replayed context value replay-value in BeforeResponseReplayHook, got %v", replayedKeyVal)
+	}
+}
