@@ -784,7 +784,15 @@ func (r *Recorder) executeAndRecord(req *http.Request, serverResponse *http.Resp
 		// Apply the duration defined in the interaction
 		if !r.skipRequestLatency {
 			r.debug("simulating latency", "duration_ms", interaction.Response.Duration.Milliseconds())
-			<-time.After(interaction.Response.Duration)
+			timer := time.NewTimer(interaction.Response.Duration)
+			defer timer.Stop()
+			select {
+			case <-req.Context().Done():
+				err := req.Context().Err()
+				r.debug("request cancelled during replay", "error", err)
+				return nil, err
+			case <-timer.C:
+			}
 		}
 
 		r.debug("replaying response",
