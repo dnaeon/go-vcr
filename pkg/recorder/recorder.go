@@ -250,6 +250,11 @@ type Recorder struct {
 	// against recorded interactions.
 	matcher MatcherFunc
 
+	// customMatcher specifies whether the matcher was provided by the API
+	// client. A custom matcher cannot describe why requests differ, so match
+	// failure details are disabled in that case.
+	customMatcher bool
+
 	// replayableInteractions specifies whether to allow interactions to be
 	// replayed multiple times.
 	replayableInteractions bool
@@ -341,6 +346,7 @@ func WithHook(handler HookFunc, kind HookKind) Option {
 func WithMatcher(matcher MatcherFunc) Option {
 	opt := func(r *Recorder) {
 		r.matcher = matcher
+		r.customMatcher = true
 	}
 
 	return opt
@@ -418,6 +424,11 @@ func New(cassetteName string, opts ...Option) (*Recorder, error) {
 
 	r.cassette = c
 	r.cassette.Matcher = r.matcher
+	if r.customMatcher {
+		// The direction of the mismatch cannot be determined from an
+		// aggregate MatcherFunc result, so keep the plain sentinel error.
+		r.cassette.DisableMatchDetails()
+	}
 	r.cassette.ReplayableInteractions = r.replayableInteractions
 	r.cassette.MarshalFunc = r.marshalFunc
 

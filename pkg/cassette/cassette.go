@@ -34,6 +34,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"reflect"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -365,12 +367,18 @@ func WithIgnoreHeaders(val ...string) DefaultMatcherOption {
 
 // NewDefaultMatcher returns the default matcher.
 func NewDefaultMatcher(opts ...DefaultMatcherOption) MatcherFunc {
+	return newDefaultMatcher(opts...).matcher
+}
+
+// newDefaultMatcher returns a default matcher configured with the given
+// options.
+func newDefaultMatcher(opts ...DefaultMatcherOption) *defaultMatcher {
 	m := &defaultMatcher{}
 	for _, opt := range opts {
 		opt(m)
 	}
 
-	return m.matcher
+	return m
 }
 
 // Similar to reflect.DeepEqual, but considers the contents of collections, so
@@ -395,46 +403,244 @@ func (m *defaultMatcher) deepEqualContents(x, y any) bool {
 // bodyMatches is a predicate which tests whether the bodies of the given HTTP
 // request and interaction request match.
 func (m *defaultMatcher) bodyMatches(r *http.Request, i Request) bool {
+	return m.bodyMismatch(r, i) == nil
+}
+
+// bodyMismatch returns a [FieldMismatch] describing how the bodies of the given
+// HTTP request and interaction request differ, or nil when they match.
+func (m *defaultMatcher) bodyMismatch(r *http.Request, i Request) *FieldMismatch {
 	if r.Body != nil {
 		var buffer bytes.Buffer
 		if _, err := buffer.ReadFrom(r.Body); err != nil {
-			return false
+			return &FieldMismatch{
+				Field:    "body",
+				Expected: i.Body,
+				Actual:   fmt.Sprintf("<body read error: %v>", err),
+			}
 		}
 
 		r.Body = io.NopCloser(bytes.NewReader(buffer.Bytes()))
 		if buffer.String() != i.Body {
-			return false
+			return &FieldMismatch{
+				Field:    "body",
+				Expected: i.Body,
+				Actual:   buffer.String(),
+			}
 		}
 	} else {
 		if len(i.Body) != 0 {
-			return false
+			return &FieldMismatch{
+				Field:    "body",
+				Expected: i.Body,
+				Actual:   "",
+			}
 		}
 	}
 
-	return true
+	return nil
 }
 
-// matcher is a predicate which matches the provided HTTP request again a
-// recorded interaction request.
-func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
+// maxReportedMismatches is the maximum number of field mismatches reported for
+// a single recorded interaction, so that a completely different request does
+// not produce an unreadable error message.
+const maxReportedMismatches = 12
+
+// maxReportedValueLen is the maximum length of a value included in a mismatch
+// report. Longer values are truncated.
+const maxReportedValueLen = 200
+
+// FieldMismatch describes a single field which differs between an actual HTTP
+// request and a recorded interaction request.
+type FieldMismatch struct {
+	// Field is the name of the field which differs. Header names are prefixed
+	// with "header:".
+	Field string
+	// Expected is the value recorded in the cassette.
+	Expected string
+	// Actual is the value of the actual HTTP request.
+	Actual string
+}
+
+// String returns a human-readable representation of the field mismatch.
+func (f FieldMismatch) String() string {
+	return fmt.Sprintf("%s: cassette has %q, request has %q",
+		f.Field, truncateValue(f.Expected), truncateValue(f.Actual))
+}
+
+// truncateValue shortens v, so that mismatch reports stay readable.
+func truncateValue(v string) string {
+	if len(v) <= maxReportedValueLen {
+		return v
+	}
+
+	return v[:maxReportedValueLen] + "... (truncated)"
+}
+
+// InteractionMismatch describes how an actual HTTP request differs from one
+// recorded interaction.
+type InteractionMismatch struct {
+	// ID is the ID of the recorded interaction.
+	ID int
+	// Request describes the recorded request, e.g. "GET https://example.com".
+	Request string
+	// Mismatches holds the fields which differ between the recorded request
+	// and the actual HTTP request.
+	Mismatches []FieldMismatch
+	// Truncated reports whether Mismatches was truncated at
+	// [maxReportedMismatches] entries.
+	Truncated bool
+}
+
+// MatchFailureError is returned by [Cassette.GetInteraction] when the actual
+// HTTP request does not match any of the recorded interactions in the cassette.
+//
+// It reports the recorded interaction which came closest to matching and the
+// fields which differ, so that a failing test does not require diffing the
+// cassette by hand.
+//
+// A *MatchFailureError wraps [ErrInteractionNotFound], so code which checks for
+// that sentinel with [errors.Is] keeps working.
+type MatchFailureError struct {
+	// Cassette is the cassette file which was searched.
+	Cassette string
+	// Request describes the actual request which failed to match.
+	Request string
+	// Considered is the number of recorded interactions which were eligible
+	// for matching.
+	Considered int
+	// Closest is the recorded interaction which came closest to matching the
+	// actual request. It is nil when no interaction was eligible.
+	Closest *InteractionMismatch
+}
+
+// Error implements the error interface.
+func (e *MatchFailureError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s: %s", ErrInteractionNotFound, e.Request)
+
+	fmt.Fprintf(&b, " (cassette %q, %d interaction(s) considered)", e.Cassette, e.Considered)
+
+	if e.Closest == nil {
+		return b.String()
+	}
+
+	fmt.Fprintf(&b, "\nclosest match is interaction %d (%s), %d field(s) differ:",
+		e.Closest.ID, e.Closest.Request, len(e.Closest.Mismatches))
+
+	for _, m := range e.Closest.Mismatches {
+		fmt.Fprintf(&b, "\n  - %s", m)
+	}
+
+	if e.Closest.Truncated {
+		b.WriteString("\n  - ... (further differences omitted)")
+	}
+
+	return b.String()
+}
+
+// Unwrap returns [ErrInteractionNotFound], so that [errors.Is] checks against
+// the sentinel error keep working.
+func (e *MatchFailureError) Unwrap() error {
+	return ErrInteractionNotFound
+}
+
+// diffHeaders reports the headers which differ between the recorded request
+// headers and the headers of the actual HTTP request.
+func diffHeaders(expected, actual map[string][]string) []FieldMismatch {
+	keys := make([]string, 0, len(expected)+len(actual))
+	for k := range expected {
+		keys = append(keys, k)
+	}
+
+	for k := range actual {
+		if _, ok := expected[k]; !ok {
+			keys = append(keys, k)
+		}
+	}
+
+	sort.Strings(keys)
+
+	var mm []FieldMismatch
+	for _, k := range keys {
+		want := strings.Join(expected[k], ", ")
+		got := strings.Join(actual[k], ", ")
+		if want == got {
+			continue
+		}
+
+		mm = append(mm, FieldMismatch{
+			Field:    "header:" + k,
+			Expected: want,
+			Actual:   got,
+		})
+	}
+
+	return mm
+}
+
+// formatStringMap renders a map of string slices, such as HTTP headers or form
+// values, in a stable order.
+func formatStringMap(m map[string][]string) string {
+	if len(m) == 0 {
+		return "{}"
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	var b strings.Builder
+	b.WriteString("{")
+
+	for idx, k := range keys {
+		if idx > 0 {
+			b.WriteString(", ")
+		}
+
+		fmt.Fprintf(&b, "%s: %s", k, strings.Join(m[k], ", "))
+	}
+
+	b.WriteString("}")
+
+	return b.String()
+}
+
+// explain is the detailed counterpart of [defaultMatcher.matcher]. It reports
+// each field which differs between the actual request and the recorded
+// interaction request. Its second return value is identical to the value
+// returned by matcher.
+func (m *defaultMatcher) explain(r *http.Request, i Request) ([]FieldMismatch, bool) {
+	var mm []FieldMismatch
+
+	add := func(field, expected, actual string) {
+		mm = append(mm, FieldMismatch{
+			Field:    field,
+			Expected: expected,
+			Actual:   actual,
+		})
+	}
+
 	if r.Method != i.Method {
-		return false
+		add("method", i.Method, r.Method)
 	}
 
 	if r.URL.String() != i.URL {
-		return false
+		add("url", i.URL, r.URL.String())
 	}
 
 	if r.Proto != i.Proto {
-		return false
+		add("proto", i.Proto, r.Proto)
 	}
 
 	if r.ProtoMajor != i.ProtoMajor {
-		return false
+		add("proto_major", strconv.Itoa(i.ProtoMajor), strconv.Itoa(r.ProtoMajor))
 	}
 
 	if r.ProtoMinor != i.ProtoMinor {
-		return false
+		add("proto_minor", strconv.Itoa(i.ProtoMinor), strconv.Itoa(r.ProtoMinor))
 	}
 
 	requestHeader := r.Header.Clone()
@@ -446,46 +652,71 @@ func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
 	}
 
 	if !m.deepEqualContents(requestHeader, cassetteRequestHeaders) {
-		return false
+		headerMismatches := diffHeaders(cassetteRequestHeaders, requestHeader)
+		if len(headerMismatches) == 0 {
+			// deepEqualContents considers nil and empty collections equal, so
+			// differing contents with no per-header difference are still
+			// reported here.
+			headerMismatches = append(headerMismatches, FieldMismatch{
+				Field:    "headers",
+				Expected: formatStringMap(cassetteRequestHeaders),
+				Actual:   formatStringMap(requestHeader),
+			})
+		}
+
+		mm = append(mm, headerMismatches...)
 	}
 
-	if !m.bodyMatches(r, i) {
-		return false
+	if mismatch := m.bodyMismatch(r, i); mismatch != nil {
+		mm = append(mm, *mismatch)
 	}
 
 	if r.ContentLength != i.ContentLength {
-		return false
+		add("content_length", strconv.FormatInt(i.ContentLength, 10), strconv.FormatInt(r.ContentLength, 10))
 	}
 
 	if !m.deepEqualContents(r.TransferEncoding, i.TransferEncoding) {
-		return false
+		add("transfer_encoding", strings.Join(i.TransferEncoding, ", "), strings.Join(r.TransferEncoding, ", "))
 	}
 
 	if r.Host != i.Host {
-		return false
+		add("host", i.Host, r.Host)
 	}
 
 	if err := r.ParseForm(); err != nil {
-		return false
-	}
-
-	if !m.deepEqualContents(r.Form, i.Form) {
-		return false
+		add("form", formatStringMap(i.Form), fmt.Sprintf("<%v>", err))
+	} else if !m.deepEqualContents(r.Form, i.Form) {
+		add("form", formatStringMap(i.Form), formatStringMap(r.Form))
 	}
 
 	if !m.deepEqualContents(r.Trailer, i.Trailer) {
-		return false
+		add("trailer", formatStringMap(i.Trailer), formatStringMap(r.Trailer))
 	}
 
 	if r.RemoteAddr != i.RemoteAddr {
-		return false
+		add("remote_addr", i.RemoteAddr, r.RemoteAddr)
 	}
 
 	if r.RequestURI != i.RequestURI {
-		return false
+		add("request_uri", i.RequestURI, r.RequestURI)
 	}
 
-	return true
+	return mm, len(mm) == 0
+}
+
+// matcher is a predicate which matches the provided HTTP request again a
+// recorded interaction request.
+func (m *defaultMatcher) matcher(r *http.Request, i Request) bool {
+	_, matched := m.explain(r, i)
+
+	return matched
+}
+
+// defaultExplainer reports the fields which differ between an actual HTTP
+// request and a recorded interaction request, as computed by the default
+// matcher configured with default options.
+func defaultExplainer(r *http.Request, i Request) ([]FieldMismatch, bool) {
+	return newDefaultMatcher().explain(r, i)
 }
 
 // DefaultMatcher is the default matcher used to match HTTP requests with
@@ -528,6 +759,21 @@ type Cassette struct {
 	// DebugLogger is an [slog.Logger] which is used to emit debug events.
 	// To enable debugging, see [recorder.WithDebugWriter] option.
 	DebugLogger *slog.Logger `yaml:"-"`
+
+	// matchDetails specifies whether match failures are reported as a
+	// [MatchFailureError] carrying the fields which differ, instead of the
+	// plain [ErrInteractionNotFound] sentinel error.
+	matchDetails bool `yaml:"-"`
+}
+
+// DisableMatchDetails configures the cassette to return the plain
+// [ErrInteractionNotFound] sentinel error on match failures, instead of a
+// [MatchFailureError] with details.
+//
+// A custom [MatcherFunc] cannot describe why two requests differ, so the
+// recorder disables match details when one is configured.
+func (c *Cassette) DisableMatchDetails() {
+	c.matchDetails = false
 }
 
 // New creates a new empty cassette
@@ -542,6 +788,7 @@ func New(name string) *Cassette {
 		IsNew:                  true,
 		nextInteractionId:      0,
 		DebugLogger:            slog.New(slog.DiscardHandler),
+		matchDetails:           true,
 	}
 
 	return c
@@ -569,6 +816,9 @@ func LoadWithFS(name string, fs FS) (*Cassette, error) {
 		return nil, fmt.Errorf("%w: %d", ErrUnsupportedCassetteFormat, CassetteFormatVersion)
 	}
 	c.nextInteractionId = len(c.Interactions)
+
+	// Match details are not persisted in the cassette.
+	c.matchDetails = true
 
 	return c, err
 }
@@ -614,6 +864,9 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		"dump", dumpHTTPRequest(r),
 	)
 	replayed := 0
+	considered := 0
+	var closest *InteractionMismatch
+
 	for _, i := range c.Interactions {
 		if i.replayed {
 			replayed++
@@ -629,6 +882,22 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		}
 		if !matched && eligible {
 			attrs = append(attrs, "dump", dumpCassetteRequest(i.Request))
+
+			considered++
+
+			// Keep the interaction which came closest to matching, so that the
+			// reported mismatch is the most useful one, instead of the first
+			// one in the cassette.
+			if c.matchDetails {
+				mismatches, matchedByDetail := defaultExplainer(r, i.Request)
+				if !matchedByDetail && (closest == nil || len(mismatches) < len(closest.Mismatches)) {
+					closest = &InteractionMismatch{
+						ID:         i.ID,
+						Request:    fmt.Sprintf("%s %s", i.Request.Method, i.Request.URL),
+						Mismatches: mismatches,
+					}
+				}
+			}
 		}
 		c.debug("match attempt", attrs...)
 		if matched {
@@ -643,7 +912,27 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 	}
 	c.debug("no match", "already_replayed_count", replayed)
 
-	return nil, ErrInteractionNotFound
+	return nil, c.matchFailureError(r, considered, closest)
+}
+
+// matchFailureError returns the error reported when the actual request does not
+// match any of the recorded interactions in the cassette.
+func (c *Cassette) matchFailureError(r *http.Request, considered int, closest *InteractionMismatch) error {
+	if closest == nil {
+		return ErrInteractionNotFound
+	}
+
+	if len(closest.Mismatches) > maxReportedMismatches {
+		closest.Mismatches = closest.Mismatches[:maxReportedMismatches]
+		closest.Truncated = true
+	}
+
+	return &MatchFailureError{
+		Cassette:   c.File,
+		Request:    fmt.Sprintf("%s %s", r.Method, r.URL),
+		Considered: considered,
+		Closest:    closest,
+	}
 }
 
 // Save writes the cassette data on disk for future re-use
