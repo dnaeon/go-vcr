@@ -34,6 +34,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -542,6 +543,7 @@ func New(name string) *Cassette {
 		IsNew:                  true,
 		nextInteractionId:      0,
 		DebugLogger:            slog.New(slog.DiscardHandler),
+		MarshalFunc:            yaml.Marshal,
 	}
 
 	return c
@@ -597,6 +599,123 @@ func (c *Cassette) debug(msg string, args ...any) {
 	c.DebugLogger.Debug(msg, args...)
 }
 
+// scoreInteraction assigns a heuristic score indicating how closely an
+// interaction request resembles an incoming HTTP request. Higher scores indicate
+// closer matches (e.g. matching method and URL path).
+func scoreInteraction(r *http.Request, i Request) int {
+	score := 0
+	if r.Method == i.Method {
+		score += 10
+	}
+	if r.URL.String() == i.URL {
+		score += 30
+	} else if cassURL, err := url.Parse(i.URL); err == nil && r.URL.Path == cassURL.Path {
+		score += 20
+	}
+	if r.Host == i.Host && r.Host != "" {
+		score += 5
+	}
+	return score
+}
+
+// diffRequest inspects the differences between an incoming [*http.Request] and
+// a recorded [Request], returning human-readable descriptions of any mismatches.
+func diffRequest(r *http.Request, reqBody string, i Request) []string {
+	var diffs []string
+
+	if r.Method != i.Method {
+		diffs = append(diffs, fmt.Sprintf("method mismatch (want %s, got %s)", i.Method, r.Method))
+	}
+
+	if r.URL.String() != i.URL {
+		cassURL, err := url.Parse(i.URL)
+		if err == nil {
+			if r.URL.Path != cassURL.Path {
+				diffs = append(diffs, fmt.Sprintf("URL path mismatch (want %s, got %s)", cassURL.Path, r.URL.Path))
+			}
+			reqQuery := r.URL.Query()
+			cassQuery := cassURL.Query()
+			if !reflect.DeepEqual(reqQuery, cassQuery) {
+				var qDiffs []string
+				for k, wantVals := range cassQuery {
+					gotVals, ok := reqQuery[k]
+					if !ok {
+						qDiffs = append(qDiffs, fmt.Sprintf("missing parameter %q", k))
+					} else if !reflect.DeepEqual(wantVals, gotVals) {
+						qDiffs = append(qDiffs, fmt.Sprintf("parameter %q mismatch (want %v, got %v)", k, wantVals, gotVals))
+					}
+				}
+				for k := range reqQuery {
+					if _, ok := cassQuery[k]; !ok {
+						qDiffs = append(qDiffs, fmt.Sprintf("unexpected parameter %q", k))
+					}
+				}
+				if len(qDiffs) > 0 {
+					sort.Strings(qDiffs)
+					diffs = append(diffs, fmt.Sprintf("query mismatch: %s", strings.Join(qDiffs, ", ")))
+				} else if r.URL.RawQuery != cassURL.RawQuery {
+					diffs = append(diffs, fmt.Sprintf("query raw string mismatch (want %q, got %q)", cassURL.RawQuery, r.URL.RawQuery))
+				}
+			}
+			if r.URL.Host != "" && cassURL.Host != "" && r.URL.Host != cassURL.Host {
+				diffs = append(diffs, fmt.Sprintf("URL host mismatch (want %s, got %s)", cassURL.Host, r.URL.Host))
+			}
+		} else {
+			diffs = append(diffs, fmt.Sprintf("URL mismatch (want %s, got %s)", i.URL, r.URL.String()))
+		}
+	}
+
+	reqHeaders := r.Header.Clone()
+	cassHeaders := i.Headers.Clone()
+
+	var hDiffs []string
+	for k, wantVals := range cassHeaders {
+		gotVals, ok := reqHeaders[k]
+		if !ok {
+			hDiffs = append(hDiffs, fmt.Sprintf("missing header %q", k))
+		} else if !reflect.DeepEqual(wantVals, gotVals) {
+			hDiffs = append(hDiffs, fmt.Sprintf("header %q mismatch (want %v, got %v)", k, wantVals, gotVals))
+		}
+	}
+	for k := range reqHeaders {
+		if _, ok := cassHeaders[k]; !ok {
+			hDiffs = append(hDiffs, fmt.Sprintf("unexpected header %q", k))
+		}
+	}
+	if len(hDiffs) > 0 {
+		sort.Strings(hDiffs)
+		diffs = append(diffs, fmt.Sprintf("header mismatch: %s", strings.Join(hDiffs, ", ")))
+	}
+
+	if reqBody != i.Body {
+		if len(reqBody) == 0 && len(i.Body) > 0 {
+			diffs = append(diffs, fmt.Sprintf("body mismatch (want %q, got empty body)", summarizeBody(i.Body)))
+		} else if len(reqBody) > 0 && len(i.Body) == 0 {
+			diffs = append(diffs, fmt.Sprintf("body mismatch (want empty body, got %q)", summarizeBody(reqBody)))
+		} else {
+			diffs = append(diffs, fmt.Sprintf("body mismatch (want %q, got %q)", summarizeBody(i.Body), summarizeBody(reqBody)))
+		}
+	}
+
+	if r.Host != i.Host && r.Host != "" && i.Host != "" {
+		diffs = append(diffs, fmt.Sprintf("host mismatch (want %s, got %s)", i.Host, r.Host))
+	}
+
+	if r.Proto != i.Proto && i.Proto != "" {
+		diffs = append(diffs, fmt.Sprintf("proto mismatch (want %s, got %s)", i.Proto, r.Proto))
+	}
+
+	if (r.ProtoMajor != i.ProtoMajor || r.ProtoMinor != i.ProtoMinor) && (i.ProtoMajor != 0 || i.ProtoMinor != 0) {
+		diffs = append(diffs, fmt.Sprintf("proto version mismatch (want %d.%d, got %d.%d)", i.ProtoMajor, i.ProtoMinor, r.ProtoMajor, r.ProtoMinor))
+	}
+
+	if r.ContentLength != i.ContentLength && (r.ContentLength > 0 || i.ContentLength > 0) {
+		diffs = append(diffs, fmt.Sprintf("content length mismatch (want %d, got %d)", i.ContentLength, r.ContentLength))
+	}
+
+	return diffs
+}
+
 // getInteraction searches for the interaction corresponding to the given HTTP
 // request, by using the configured [MatcherFunc].
 func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
@@ -613,7 +732,24 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 		"host", r.Host,
 		"dump", dumpHTTPRequest(r),
 	)
+
+	reqBody := ""
+	if r.Body != nil && r.Body != http.NoBody {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err == nil {
+			reqBody = string(bodyBytes)
+			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		}
+	}
+
 	replayed := 0
+	type candidate struct {
+		interaction *Interaction
+		diffs       []string
+		score       int
+	}
+	var bestCandidate *candidate
+
 	for _, i := range c.Interactions {
 		if i.replayed {
 			replayed++
@@ -627,8 +763,31 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 			"matched", matched,
 			"request", i.Request,
 		}
+
+		var diffs []string
+		if !matched {
+			diffs = diffRequest(r, reqBody, i.Request)
+			if !eligible && len(diffs) == 0 {
+				diffs = append(diffs, "already replayed")
+			}
+			score := scoreInteraction(r, i.Request)
+			if eligible {
+				score += 5
+			}
+			if bestCandidate == nil || score > bestCandidate.score {
+				bestCandidate = &candidate{
+					interaction: i,
+					diffs:       diffs,
+					score:       score,
+				}
+			}
+		}
+
 		if !matched && eligible {
 			attrs = append(attrs, "dump", dumpCassetteRequest(i.Request))
+			if len(diffs) > 0 {
+				attrs = append(attrs, "reasons", strings.Join(diffs, "; "))
+			}
 		}
 		c.debug("match attempt", attrs...)
 		if matched {
@@ -641,9 +800,46 @@ func (c *Cassette) getInteraction(r *http.Request) (*Interaction, error) {
 			return i, nil
 		}
 	}
-	c.debug("no match", "already_replayed_count", replayed)
 
-	return nil, ErrInteractionNotFound
+	// Build a detailed error message explaining why no interaction matched.
+	var detail string
+	if len(c.Interactions) == 0 {
+		detail = "cassette has no recorded interactions"
+	} else if replayed == len(c.Interactions) && !c.ReplayableInteractions {
+		detail = fmt.Sprintf("all %d recorded interaction(s) have already been replayed", replayed)
+	} else if bestCandidate != nil && bestCandidate.score >= 30 {
+		// We have a candidate with matching URL path or exact URL
+		if !c.ReplayableInteractions && bestCandidate.interaction.replayed && len(bestCandidate.diffs) == 1 && bestCandidate.diffs[0] == "already replayed" {
+			detail = fmt.Sprintf("interaction #%d matched %s %s but has already been replayed",
+				bestCandidate.interaction.ID, bestCandidate.interaction.Request.Method, bestCandidate.interaction.Request.URL)
+		} else {
+			diffsStr := strings.Join(bestCandidate.diffs, "; ")
+			if diffsStr == "" {
+				diffsStr = "matcher rejected request"
+			}
+			detail = fmt.Sprintf("closest match is interaction #%d: %s",
+				bestCandidate.interaction.ID, diffsStr)
+		}
+	} else {
+		if len(c.Interactions) <= 3 {
+			var recorded []string
+			for _, inter := range c.Interactions {
+				recorded = append(recorded, fmt.Sprintf("%s %s", inter.Request.Method, inter.Request.URL))
+			}
+			detail = fmt.Sprintf("no interaction found matching %s %s; recorded interactions: %s",
+				r.Method, r.URL.String(), strings.Join(recorded, ", "))
+		} else {
+			detail = fmt.Sprintf("no interaction found matching %s %s among %d recorded interaction(s)",
+				r.Method, r.URL.String(), len(c.Interactions))
+		}
+	}
+
+	c.debug("no match",
+		"already_replayed_count", replayed,
+		"reason", detail,
+	)
+
+	return nil, fmt.Errorf("%w: %s", ErrInteractionNotFound, detail)
 }
 
 // Save writes the cassette data on disk for future re-use
@@ -674,7 +870,11 @@ func (c *Cassette) SaveWithFS(fs FS) error {
 	c.Interactions = interactions
 
 	// Marshal to YAML and save interactions
-	data, err := c.MarshalFunc(c)
+	marshalFunc := c.MarshalFunc
+	if marshalFunc == nil {
+		marshalFunc = yaml.Marshal
+	}
+	data, err := marshalFunc(c)
 	if err != nil {
 		return err
 	}

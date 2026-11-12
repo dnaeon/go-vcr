@@ -25,6 +25,7 @@
 package cassette
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -493,4 +494,219 @@ func TestDumpCassetteRequest(t *testing.T) {
 	if !strings.Contains(got, `{"x":1}`) {
 		t.Fatalf("dump missing body: %q", got)
 	}
+}
+
+func TestGetInteractionErrors(t *testing.T) {
+	t.Run("empty cassette", func(t *testing.T) {
+		c := New("test")
+		req, err := http.NewRequest(http.MethodGet, "https://example.com/v1", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = c.GetInteraction(req)
+		if !errors.Is(err, ErrInteractionNotFound) {
+			t.Fatalf("expected ErrInteractionNotFound, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "cassette has no recorded interactions") {
+			t.Fatalf("unexpected error message: %v", err)
+		}
+	})
+
+	t.Run("header mismatch and missing header", func(t *testing.T) {
+		c := New("test")
+		c.AddInteraction(&Interaction{
+			Request: Request{
+				Method: "GET",
+				URL:    "https://example.com/v1",
+				Proto:  "HTTP/1.1",
+				Host:   "example.com",
+				Headers: http.Header{
+					"Authorization": {"Bearer token1"},
+					"X-Required":    {"true"},
+				},
+			},
+		})
+
+		// Missing X-Required and different Authorization
+		req, err := http.NewRequest(http.MethodGet, "https://example.com/v1", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer token2")
+
+		_, err = c.GetInteraction(req)
+		if !errors.Is(err, ErrInteractionNotFound) {
+			t.Fatalf("expected ErrInteractionNotFound, got %v", err)
+		}
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "header mismatch") {
+			t.Fatalf("expected 'header mismatch' in error, got: %s", errMsg)
+		}
+		if !strings.Contains(errMsg, "missing header \"X-Required\"") {
+			t.Fatalf("expected 'missing header \"X-Required\"' in error, got: %s", errMsg)
+		}
+		if !strings.Contains(errMsg, "header \"Authorization\" mismatch") {
+			t.Fatalf("expected 'header \"Authorization\" mismatch' in error, got: %s", errMsg)
+		}
+	})
+
+	t.Run("query parameter mismatch", func(t *testing.T) {
+		c := New("test")
+		c.AddInteraction(&Interaction{
+			Request: Request{
+				Method: "GET",
+				URL:    "https://example.com/v1?page=1&sort=asc",
+				Proto:  "HTTP/1.1",
+				Host:   "example.com",
+			},
+		})
+
+		req, err := http.NewRequest(http.MethodGet, "https://example.com/v1?page=2&sort=asc", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = c.GetInteraction(req)
+		if !errors.Is(err, ErrInteractionNotFound) {
+			t.Fatalf("expected ErrInteractionNotFound, got %v", err)
+		}
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "query mismatch") {
+			t.Fatalf("expected 'query mismatch' in error, got: %s", errMsg)
+		}
+		if !strings.Contains(errMsg, "parameter \"page\" mismatch") {
+			t.Fatalf("expected 'parameter \"page\" mismatch' in error, got: %s", errMsg)
+		}
+	})
+
+	t.Run("body mismatch", func(t *testing.T) {
+		c := New("test")
+		c.AddInteraction(&Interaction{
+			Request: Request{
+				Method: "POST",
+				URL:    "https://example.com/v1",
+				Proto:  "HTTP/1.1",
+				Host:   "example.com",
+				Body:   `{"status":"ok"}`,
+			},
+		})
+
+		req, err := http.NewRequest(http.MethodPost, "https://example.com/v1", strings.NewReader(`{"status":"failed"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = c.GetInteraction(req)
+		if !errors.Is(err, ErrInteractionNotFound) {
+			t.Fatalf("expected ErrInteractionNotFound, got %v", err)
+		}
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "body mismatch") {
+			t.Fatalf("expected 'body mismatch' in error, got: %s", errMsg)
+		}
+	})
+
+	t.Run("already replayed interaction", func(t *testing.T) {
+		c := New("test")
+		c.AddInteraction(&Interaction{
+			Request: Request{
+				Method:     "GET",
+				URL:        "https://example.com/v1",
+				Proto:      "HTTP/1.1",
+				ProtoMajor: 1,
+				ProtoMinor: 1,
+				Host:       "example.com",
+			},
+		})
+
+		req, err := http.NewRequest(http.MethodGet, "https://example.com/v1", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// First replay succeeds
+		inter, err := c.GetInteraction(req)
+		if err != nil {
+			t.Fatalf("first replay failed: %v", err)
+		}
+		if inter == nil {
+			t.Fatal("expected interaction, got nil")
+		}
+
+		// Second replay fails because already replayed
+		req2, _ := http.NewRequest(http.MethodGet, "https://example.com/v1", nil)
+		_, err = c.GetInteraction(req2)
+		if !errors.Is(err, ErrInteractionNotFound) {
+			t.Fatalf("expected ErrInteractionNotFound, got %v", err)
+		}
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "already been replayed") {
+			t.Fatalf("expected 'already been replayed' in error, got: %s", errMsg)
+		}
+	})
+
+	t.Run("different endpoint", func(t *testing.T) {
+		c := New("test")
+		c.AddInteraction(&Interaction{
+			Request: Request{
+				Method: "GET",
+				URL:    "https://example.com/v1/users",
+				Proto:  "HTTP/1.1",
+				Host:   "example.com",
+			},
+		})
+
+		req, err := http.NewRequest(http.MethodGet, "https://example.com/v1/orders", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = c.GetInteraction(req)
+		if !errors.Is(err, ErrInteractionNotFound) {
+			t.Fatalf("expected ErrInteractionNotFound, got %v", err)
+		}
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "no interaction found matching") {
+			t.Fatalf("expected 'no interaction found matching' in error, got: %s", errMsg)
+		}
+		if !strings.Contains(errMsg, "GET https://example.com/v1/users") {
+			t.Fatalf("expected recorded interaction listed in error, got: %s", errMsg)
+		}
+	})
+}
+
+func TestCassetteNewMarshalFunc(t *testing.T) {
+	c := New("test")
+	if c.MarshalFunc == nil {
+		t.Fatal("expected MarshalFunc to be initialized in New")
+	}
+
+	// Setting MarshalFunc to nil should still fallback to yaml.Marshal in SaveWithFS
+	c.MarshalFunc = nil
+	fs := &mockFS{files: make(map[string][]byte)}
+	if err := c.SaveWithFS(fs); err != nil {
+		t.Fatalf("SaveWithFS failed with nil MarshalFunc: %v", err)
+	}
+}
+
+type mockFS struct {
+	files map[string][]byte
+}
+
+func (m *mockFS) ReadFile(name string) ([]byte, error) {
+	data, ok := m.files[name]
+	if !ok {
+		return nil, errors.New("file not found")
+	}
+	return data, nil
+}
+
+func (m *mockFS) WriteFile(name string, data []byte) error {
+	m.files[name] = data
+	return nil
+}
+
+func (m *mockFS) IsFileExists(name string) bool {
+	_, ok := m.files[name]
+	return ok
 }
