@@ -35,9 +35,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"go.yaml.in/yaml/v4"
 	"gopkg.in/dnaeon/go-vcr.v4/pkg/cassette"
 	"gopkg.in/dnaeon/go-vcr.v4/pkg/recorder"
 )
@@ -314,6 +318,171 @@ func TestReplayWithContextTimeout(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected cancellation error, got %v", err)
 		}
+	}
+}
+
+type replayLatencyWriter struct {
+	started chan struct{}
+	once    sync.Once
+}
+
+func (w *replayLatencyWriter) Write(p []byte) (int, error) {
+	if bytes.Contains(p, []byte("simulating latency")) {
+		w.once.Do(func() { close(w.started) })
+	}
+	return len(p), nil
+}
+
+func newReplayLatencyRecorder(t *testing.T, duration time.Duration, skip bool, writer io.Writer) *recorder.Recorder {
+	t.Helper()
+	c := cassette.New(filepath.Join(t.TempDir(), "latency"))
+	c.MarshalFunc = yaml.Marshal
+	c.AddInteraction(&cassette.Interaction{
+		Request: cassette.Request{Method: http.MethodGet, URL: "http://example.com/latency"},
+		Response: cassette.Response{
+			Code:          http.StatusOK,
+			Status:        "200 OK",
+			Body:          "recorded response",
+			ContentLength: 17,
+			Duration:      duration,
+		},
+	})
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := []recorder.Option{
+		recorder.WithMode(recorder.ModeReplayOnly),
+		recorder.WithSkipRequestLatency(skip),
+		recorder.WithMatcher(func(r *http.Request, i cassette.Request) bool {
+			return r.Method == i.Method && r.URL.String() == i.URL
+		}),
+	}
+	if writer != nil {
+		opts = append(opts, recorder.WithDebugWriter(writer))
+	}
+	rec, err := recorder.New(c.Name, opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := rec.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
+	return rec
+}
+
+func TestReplayLatencyCancellation(t *testing.T) {
+	t.Parallel()
+	for _, deadline := range []bool{false, true} {
+		name := "cancel"
+		wantErr := context.Canceled
+		if deadline {
+			name = "deadline"
+			wantErr = context.DeadlineExceeded
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			writer := &replayLatencyWriter{started: make(chan struct{})}
+			rec := newReplayLatencyRecorder(t, 5*time.Second, false, writer)
+			ctx, cancel := context.WithCancel(context.Background())
+			if deadline {
+				cancel()
+				ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+			}
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.com/latency", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				resp, err := rec.RoundTrip(req)
+				if resp != nil {
+					resp.Body.Close()
+					if err == nil {
+						err = errors.New("received a response after cancellation")
+					}
+				}
+				done <- err
+			}()
+
+			select {
+			case <-writer.started:
+			case err := <-done:
+				t.Fatalf("request returned before entering latency: %v", err)
+			case <-time.After(3 * time.Second):
+				t.Fatal("request did not enter replay latency")
+			}
+			if !deadline {
+				cancel()
+			}
+			select {
+			case err := <-done:
+				if !errors.Is(err, wantErr) {
+					t.Fatalf("want %v, got %v", wantErr, err)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("canceled request remained in replay latency")
+			}
+		})
+	}
+}
+
+func TestReplayLatency(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		duration time.Duration
+		skip     bool
+		cancel   bool
+	}{
+		{name: "delay", duration: 20 * time.Millisecond},
+		{name: "zero"},
+		{name: "negative", duration: -time.Second},
+		{name: "skip", duration: 5 * time.Second, skip: true},
+		{name: "canceled", duration: 5 * time.Second, cancel: true},
+		{name: "canceled zero", cancel: true},
+		{name: "canceled negative", duration: -time.Second, cancel: true},
+		{name: "canceled skip", duration: 5 * time.Second, skip: true, cancel: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rec := newReplayLatencyRecorder(t, tc.duration, tc.skip, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if tc.cancel {
+				cancel()
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.com/latency", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			start := time.Now()
+			resp, err := rec.RoundTrip(req)
+			elapsed := time.Since(start)
+			if tc.cancel {
+				if resp != nil || !errors.Is(err, context.Canceled) {
+					t.Fatalf("want no response and context.Canceled, got %v, %v", resp, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(body) != "recorded response" || resp.StatusCode != http.StatusOK {
+				t.Fatalf("unexpected replay response: %d %q", resp.StatusCode, body)
+			}
+			if !tc.skip && elapsed < tc.duration {
+				t.Fatalf("latency %v is shorter than recorded %v", elapsed, tc.duration)
+			}
+		})
 	}
 }
 
