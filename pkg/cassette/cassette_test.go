@@ -25,6 +25,7 @@
 package cassette
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -492,5 +493,203 @@ func TestDumpCassetteRequest(t *testing.T) {
 	}
 	if !strings.Contains(got, `{"x":1}`) {
 		t.Fatalf("dump missing body: %q", got)
+	}
+}
+
+func TestMatchFailureErrorReportsDifferingFields(t *testing.T) {
+	t.Parallel()
+
+	c := New("cassette-under-test")
+	c.Interactions = []*Interaction{
+		{
+			ID: 0,
+			Request: Request{
+				Method:        "GET",
+				URL:           "https://example.com/api/items?page=1",
+				Proto:         "HTTP/1.1",
+				ProtoMajor:    1,
+				ProtoMinor:    1,
+				Host:          "example.com",
+				ContentLength: int64(len(`{"a":1}`)),
+				Headers: http.Header{
+					"Accept":     []string{"application/json"},
+					"User-Agent": []string{"go-vcr"},
+				},
+				Form: url.Values{"page": []string{"1"}},
+			},
+		},
+	}
+
+	req, err := http.NewRequest("POST", "https://example.com/api/items?page=2", strings.NewReader(`{"a":1}`))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Accept", "text/plain")
+	req.Header.Set("User-Agent", "go-vcr")
+
+	_, err = c.GetInteraction(req)
+	if err == nil {
+		t.Fatal("expected a match failure error")
+	}
+
+	// The sentinel error must still be detectable.
+	if !errors.Is(err, ErrInteractionNotFound) {
+		t.Fatalf("errors.Is(err, ErrInteractionNotFound) = false, err = %v", err)
+	}
+
+	var matchErr *MatchFailureError
+	if !errors.As(err, &matchErr) {
+		t.Fatalf("errors.As(err, *MatchFailureError) = false, err = %v", err)
+	}
+
+	if matchErr.Considered != 1 {
+		t.Errorf("Considered = %d, want 1", matchErr.Considered)
+	}
+
+	if matchErr.Closest == nil {
+		t.Fatal("Closest = nil, want the recorded interaction")
+	}
+
+	if matchErr.Closest.ID != 0 {
+		t.Errorf("Closest.ID = %d, want 0", matchErr.Closest.ID)
+	}
+
+	fields := make(map[string]bool)
+	for _, m := range matchErr.Closest.Mismatches {
+		fields[m.Field] = true
+	}
+
+	for _, want := range []string{"method", "url", "header:Accept", "body", "form"} {
+		if !fields[want] {
+			t.Errorf("mismatch for field %q not reported, got %v", want, fields)
+		}
+	}
+
+	// These fields are equal for both requests, so they must not be reported.
+	for _, unwanted := range []string{"header:User-Agent", "host", "proto", "proto_major", "proto_minor", "content_length"} {
+		if fields[unwanted] {
+			t.Errorf("unexpected mismatch for field %q", unwanted)
+		}
+	}
+
+	msg := err.Error()
+	for _, want := range []string{"requested interaction not found", "closest match is interaction 0", "method:"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error message %q does not contain %q", msg, want)
+		}
+	}
+}
+
+func TestMatchFailureErrorPicksClosestInteraction(t *testing.T) {
+	t.Parallel()
+
+	cassetteHeaders := func() http.Header {
+		return http.Header{"Accept": []string{"application/json"}}
+	}
+
+	c := New("cassette-under-test")
+	c.Interactions = []*Interaction{
+		{
+			ID: 0,
+			Request: Request{
+				Method:     "GET",
+				URL:        "https://example.com/unrelated",
+				Proto:      "HTTP/1.1",
+				ProtoMajor: 1,
+				ProtoMinor: 1,
+				Host:       "example.com",
+				Headers:    cassetteHeaders(),
+			},
+		},
+		{
+			ID: 1,
+			Request: Request{
+				Method:     "GET",
+				URL:        "https://example.com/api/items",
+				Proto:      "HTTP/1.1",
+				ProtoMajor: 1,
+				ProtoMinor: 1,
+				Host:       "example.com",
+				Headers:    cassetteHeaders(),
+			},
+		},
+	}
+
+	req, err := http.NewRequest("GET", "https://example.com/api/items", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Accept", "text/plain")
+
+	_, err = c.GetInteraction(req)
+	if err == nil {
+		t.Fatal("expected a match failure error")
+	}
+
+	var matchErr *MatchFailureError
+	if !errors.As(err, &matchErr) {
+		t.Fatalf("errors.As(err, *MatchFailureError) = false, err = %v", err)
+	}
+
+	if matchErr.Closest == nil || matchErr.Closest.ID != 1 {
+		t.Fatalf("Closest = %+v, want interaction 1", matchErr.Closest)
+	}
+
+	if got, want := len(matchErr.Closest.Mismatches), 1; got != want {
+		t.Errorf("len(Mismatches) = %d, want %d: %v", got, want, matchErr.Closest.Mismatches)
+	}
+}
+
+func TestMatchFailureDetailsDisabled(t *testing.T) {
+	t.Parallel()
+
+	c := New("cassette-under-test")
+	c.Interactions = []*Interaction{
+		{
+			ID:      0,
+			Request: Request{Method: "GET", URL: "https://example.com/api/items"},
+		},
+	}
+	c.DisableMatchDetails()
+
+	req, err := http.NewRequest("POST", "https://example.com/api/items", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+
+	_, err = c.GetInteraction(req)
+	if !errors.Is(err, ErrInteractionNotFound) {
+		t.Fatalf("errors.Is(err, ErrInteractionNotFound) = false, err = %v", err)
+	}
+
+	var matchErr *MatchFailureError
+	if errors.As(err, &matchErr) {
+		t.Fatal("errors.As(err, *MatchFailureError) = true, want the plain sentinel error")
+	}
+}
+
+func TestMatchFailureNoEligibleInteractions(t *testing.T) {
+	t.Parallel()
+
+	c := New("cassette-under-test")
+	c.Interactions = []*Interaction{
+		{
+			ID:       0,
+			replayed: true,
+			Request: Request{
+				Method: "GET",
+				URL:    "https://example.com/api/items",
+			},
+		},
+	}
+
+	req, err := http.NewRequest("GET", "https://example.com/api/items", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+
+	_, err = c.GetInteraction(req)
+	if !errors.Is(err, ErrInteractionNotFound) {
+		t.Fatalf("errors.Is(err, ErrInteractionNotFound) = false, err = %v", err)
 	}
 }
