@@ -26,6 +26,7 @@ package cassette
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -190,6 +191,33 @@ type Request struct {
 
 	// Request method
 	Method string `yaml:"method"`
+
+	// ctx is the context of the request
+	ctx context.Context
+}
+
+// Context returns the request's context. To change the context, use
+// [Request.WithContext].
+//
+// The returned context is always non-nil; it defaults to the background
+// context.
+func (r Request) Context() context.Context {
+	if r.ctx != nil {
+		return r.ctx
+	}
+
+	return context.Background()
+}
+
+// WithContext returns a copy of r with its context changed to ctx.
+// The provided ctx must be non-nil.
+func (r Request) WithContext(ctx context.Context) Request {
+	if ctx == nil {
+		panic("nil context")
+	}
+	r.ctx = ctx
+
+	return r
 }
 
 // String implements [fmt.Stringer]. It renders the recorded request as a
@@ -263,6 +291,12 @@ func (i *Interaction) WasReplayed() bool {
 // GetHTTPRequest converts the recorded interaction request to http.Request
 // instance.
 func (i *Interaction) GetHTTPRequest() (*http.Request, error) {
+	return i.GetHTTPRequestWithContext(i.Request.Context())
+}
+
+// GetHTTPRequestWithContext converts the recorded interaction request to http.Request
+// instance using the provided context.
+func (i *Interaction) GetHTTPRequestWithContext(ctx context.Context) (*http.Request, error) {
 	url, err := url.Parse(i.Request.URL)
 	if err != nil {
 		return nil, err
@@ -285,13 +319,23 @@ func (i *Interaction) GetHTTPRequest() (*http.Request, error) {
 		Method:           i.Request.Method,
 	}
 
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
 	return req, nil
 }
 
 // GetHTTPResponse converts the recorded interaction response to http.Response
 // instance.
 func (i *Interaction) GetHTTPResponse() (*http.Response, error) {
-	req, err := i.GetHTTPRequest()
+	return i.GetHTTPResponseWithContext(i.Request.Context())
+}
+
+// GetHTTPResponseWithContext converts the recorded interaction response to http.Response
+// instance using the provided context for the request.
+func (i *Interaction) GetHTTPResponseWithContext(ctx context.Context) (*http.Response, error) {
+	req, err := i.GetHTTPRequestWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
